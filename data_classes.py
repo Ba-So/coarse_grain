@@ -7,6 +7,12 @@ class Grid(object):
     def __init__(self, dim, data, weights=1, vec=False):
         self.dim        = dim
         self.points(data, vec)
+        # implement a rho array seperately
+        # think about implementing Lat/lon grid seperately as well
+        # can i guarantee that orders are not jumbled up?
+        # thus the averaging is done independently from GRIDs 
+        # done instead as function on grids. 
+ 
         
         # automatic weighting
         self.multiply(weights)
@@ -24,12 +30,48 @@ class Grid(object):
                             for k in range(dim[2])]
                                 for j in range(dim[1])]
                                     for i in range(dim[0])]
-
+          
         else:
             self.data = [[[data[i][j][k]
                             for k in range(dim[2])]
                                 for j in range(dim[1])]
                                     for i in range(dim[0])]
+
+    def avg(self, area, center, kind='norm', rho, grid):
+        '''computing averages of an area, contained
+           within an ortosphere of radius 'area'[m] around 'center'[°].
+           Three kinds of averages are possible:
+           norm:    simple average of all hexes, whose centers are
+                    within the orthosphere
+           dist:    distance weigthed average onto the center of orthosphere
+                    (to be used, if center of orthosphere is not coinciding 
+                    with a hex center)
+           hat:     density weighted average of all hexes, whose centers are
+                    within the ortosphere'''
+        R = earthRadius
+        r = area/R
+        data    = self.data
+        for zdim in range(self.dim[0]):
+            # if lon lat grid is independent of zdim we can save one loop here. 
+            for ydim in range(self.dim[1]):
+                for xdim in range(self.dim[2]):
+                    members = in_orthosphere(r, 
+                                             grid[zdim][ydim][xdim].data,
+                                             grid[zdim], 
+                                             self.dim[1:2])
+                    if kind == 'norm':
+                        avg = 
+                        for member in members:
+
+
+
+                    elif kind == 'hat':
+
+                    elif kind == 'dist':
+                    
+                    else:
+                        print 'error unknown kind of averaging chosen!'
+
 
     def avg(self, area):
         '''computing the average overwriting original data'''
@@ -70,6 +112,7 @@ class Dyadic(object):
     def __init__(self, data):
         self.dim    = len(data)
         self.data   = data 
+        self.center = [lat,lon]
 
 
     def multiply(self, B):
