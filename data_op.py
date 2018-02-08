@@ -25,7 +25,7 @@ def account_for_pentagons(grid):
   for i in zeroes:
     num_edges[i[1]] = 5
     if i[0] != 5:
-      cni[i[0],i[1]] = cni[6,i[1]]
+      cni[i[0],i[1]] = cni[5,i[1]]
     else:
       cni[5,i[1]] = cni[4,i[1]]
 
@@ -58,7 +58,6 @@ def define_hex_area(grid, num_rings):
     jh      = 0 
     jh_c    = 1
     a_nei_idx[0,idx] = idx
-
     while jh_c < num_hex[idx]:
       idx_n  =  a_nei_idx[jh, idx]
 
@@ -72,9 +71,12 @@ def define_hex_area(grid, num_rings):
 
         if idx_c in a_nei_idx[:,idx]:
           pass
-        else:
+        elif jh_c < num_hex[idx]:
           a_nei_idx[jh_c, idx] = idx_c
           jh_c  += 1
+        else:
+          break
+          print 'define_hex_area: error jh_c to large'
 
       jh   += 1
   
@@ -99,25 +101,30 @@ def define_hex_area(grid, num_rings):
 
   return grid
 
-#This is where the rest goes
-def get_members(grid, data, i, var):
+def get_members(grid_nfo, data, i, variables):
   '''gets members of a hex_area'''
-  num_hex   = grid['area_num_hex'].values[i]
-  a_nei_idx = grid['area_neighbor_idx'].values[:,i]
-  out       = np.array([])
+  # functional and used. 
+  num_hex   = grid_nfo['area_num_hex'][i]
+  a_nei_idx = grid_nfo['area_neighbor_idx'][:,i]
+  out       = {} 
+
   for var in variables:
-    out       = np.vstack((out,
-                  np.array(
-                    [data[var].values[j] for j in a_nei_idx]
-                    ))
-                  )
-  return out[:,:num_hex] 
+    if data[var].ndim == 3:
+      out[var] = np.array([data[var][:,:,j] for j in a_nei_idx[:num_hex]])
+    if data[var].ndim == 2:
+      out[var] = np.array([data[var][:,j] for j in a_nei_idx[:num_hex]])
+    if data[var].ndim == 1:
+      out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
 
+  return out 
 
+# unfunctional as of yet?
 def compute_uv_dyads(grid, data):
-  data =    mop.area_avg_vec('hat', grid, data, ['U''V']
-  data =    mop.area_avg_vec('bar', grid, data, ['U''V']
-  
+  data =    mop.area_avg_vec('hat', grid, data, ['U','V'])
+  data =    mop.area_avg_vec('bar', grid, data, ['U','V'])
+    # do some nasty magic with lambda fucntions in conjucture with area_avg
+    # functions?
+  return None
           
 
 

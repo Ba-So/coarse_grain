@@ -10,7 +10,7 @@ import math_op as mop
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
 
-def read_netcdfs(files, dim, kwargs, func=None):
+def read_netcdfs(files, dim, kwargs=None, func=None):
   """
         reads data from .nc files:
         path: Path to file
@@ -23,7 +23,7 @@ def read_netcdfs(files, dim, kwargs, func=None):
       # or aggregation
       if func is not None:
         ds = func(ds, kwargs)
-      # Load all data from the transoformed dataset, to ensure we
+      # Load all data from the transformed dataset, to ensure we
       # use it after closing each original file
       ds.load()
       return ds
@@ -49,6 +49,7 @@ def extract_variables(ds, variables):
 
   ds_o  = xr.Dataset(data)
 
+  # for convienience. 
   ds_o  = ds_o.rename({'cell2' : 'ncells',
                        'vlon' : 'clon', 'vlat' : 'clat'
                        })
@@ -86,7 +87,7 @@ def read_grid(ds, path, num_rings):
   grid = mop.coarse_area(grid)
   print '--------------'
   print 'writing file as {}_refined_{}.nc'.format(path,num_rings)
-  cio.write_netcdf(grid, path+'_refined_{}.nc'.format(num_rings))
+  write_netcdf(path+'_refined_{}.nc'.format(num_rings), grid)
   return grid
 
 def write_netcdf(path, ds):
