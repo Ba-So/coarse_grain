@@ -220,27 +220,47 @@ def vector_flucts(values, grid_dic, num_hex, vars):
       result[j,:,:]     = rot_vec[i, j, :, :] - values[vars[i]+'_bar'][:,:]
     values[vars[i]+'_f'] = result
 
-   return values
+  return values
 
 def compute_dyads(values, grid_dic, vars):
   '''computes the dyadic products of v'''
   if not(all(key in values for key in ['RHO', 'cell_area'])):
     sys.exit('ERROR: compute_dyads, "RHO" or "cell_area" missing in values')
+  if not('dyad' in values):
+    # in case of first call build output file
+    # output slot, outgoing info
+    values['dyad']        = np.emtpy([
+      l_vec,
+      l_vec,
+      grid_dic['ntim'],
+      grid_dic['nlev'],
+      grid_dic['ncells']
+     ])
+
+  # dimension of dyad
   l_vec   = len(vars)
+  # the product of dyadic multiplication (probably term dyadic is misused here)
   product = np.empty([l_vec,l_vec,grid_dic['area_num_hex'],grid_dic['ntim'],grid_dic['nlev']])
   product.fill(0)
+  # helper, containing the constituents for computation 
   constituents = []
   for var in vars:
     constituents.append(values[var])
+  # helper as handle for avg_bar, values in it are multiplied and averaged over
+  helper                = {}
+  helper['cell_area']   = values['cell_area']
+  helper['RHO']         = values['RHO']
+
   for i in range(l_vec):
     for j in range(l_vec):
-      product[i+j,:,:,:] = constituents[i] * constituents[j] * values['RHO']
-  out = {}
-  out['product'] = product
-  # This is not working. due to i, j
-  #use mult here
-  out['cell_area'] = values['cell_area']
-  out = avg_bar(out, grid_dic['coarse_area'], grid_dic['i_cell']  )
+      product[i,j,:,:,:] = constituents[i] * constituents[j] * values['RHO']
+  for i in range(l_vec):
+    for j in range(l_vec):
+      out['product']    = product[i,j,:,:,:]
+      values['dyad'][i,j,:,:,grid_dic['i_cell']] = avg_bar(out,
+                                                    grid_dic['coarse_area'],
+                                                    grid_dic['i_cell']
+                                                    )
   return values
 
 def mult(dataset):
@@ -309,7 +329,6 @@ def rotate_vec(lon, lat, x,y):
 def rotate_latlon_vec(lon, lat, plon, plat):
   '''gives entries of rotation matrix for vector rotation
      taken from ICON code '''
-
   z_lamdiff = plon - lon
   z_a       = np.cos(plat)*np.sin(z_lamdiff)
   z_b       = np.cos(lat)*np.sin(plat)-np.sin(lat)*np.cos(plat)*np.cos(z_lamdiff)
