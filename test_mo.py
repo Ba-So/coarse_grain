@@ -15,28 +15,20 @@ def test_coarse_area(files):
     print type(grid)
     return False
 
-def test_area_avg_bar(files, grid):
-  #will no longer work
-  kwargs = {'variables' : ['U','RHO']} 
-  data= cio.read_netcdfs(files, 'time', kwargs, func= lambda ds, kwargs:cio.
-      extract_variables(ds, **kwargs)) 
+def test_area_avg_bar(data, grid_nfo):
   kind= 'bar'
   var = {
         'vars' : ['U']
       } 
-  data= mo.area_avg(kind, grid, data, var)
+  data = mo.area_avg(kind, grid_nfo, data, var)
   return data 
 
-def test_area_avg_hat(files, grid):
-  # will no longer work.
-  kwargs = {'variables' : ['U','RHO']} 
-  data= cio.read_netcdfs(files, 'time', kwargs, func= lambda ds, kwargs:cio.
-      extract_variables(ds, **kwargs)) 
+def test_area_avg_hat(data, grid_nfo):
   kind= 'hat'
   var = {
         'vars' : ['U']
       } 
-  data= mo.area_avg(kind, grid, data, var)
+  data = mo.area_avg(kind, grid_nfo, data, var)
   return data 
 
 def test_vec_avg_hat(files, grid):
@@ -113,12 +105,6 @@ def test_compute_dyads(data, grid):
     dat_dic[var]    = data[var].values
   dat_dic['lat']    = grid['lat'].values
   dat_dic['lon']    = grid['lon'].values
-  grid_nfo= {
-            'area_num_hex' : grid['area_num_hex'].values,
-            'area_neighbor_idx' : grid['area_neighbor_idx'].values,
-            'ntim'              : data.dims['time'],
-            'nlev'              : data.dims['lev']
-            }
   
   values =  dop.get_members(grid_nfo, dat_dic, i_cell, vars)
 
@@ -141,8 +127,21 @@ if __name__== '__main__':
   kwargs = {'variables' : ['U','V','RHO']} 
   data= cio.read_netcdfs([filen[0]], 'time', kwargs, func= lambda ds, kwargs:cio.
       extract_variables(ds, **kwargs)) 
- # data  = test_area_avg_bar([filen[0]], grid)
- # data  = test_area_avg_hat([filen[0]], grid)
+  grid_nfo={
+      'area_num_hex'        : grid['area_num_hex'].values,
+      'area_neighbor_idx'   : grid['area_neighbor_idx'].values,
+      'coarse_area'         : grid['coarse_area'].values,
+      'cell_area'           : grid['cell_area'].values,
+      'ntim'                : data.dims['time'],
+      'nlev'                : data.dims['lev'],
+      'ncells'              : data.dims['ncells'],
+      'i_cell'              : 0 
+      }
+  data_s = {}
+  for var in kwargs['variables']:
+    data_s[var] = data[var].values
+  data_s   = test_area_avg_bar(data_s, grid_nfo)
+ ## data_s  = test_area_avg_hat(data_s, grid_nfo)
  # data = test_vec_avg_hat([filen[0]], grid)
  # i = test_rotate_latlon_vec(grid)
  # data = test_compute_flucts(data, grid)

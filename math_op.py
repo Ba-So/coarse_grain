@@ -18,6 +18,7 @@
 # *  Find out about Python parallelization to speed this up
 # *  
 import os
+import sys
 import xarray as xr
 import numpy as np
 import data_op as dop
@@ -50,7 +51,6 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
   helper = {}
   name   = [] 
   dat_dic  = {}
-  print var
   kwargs = {}
   
   if not vec:
@@ -64,9 +64,6 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
     name = var['vector'][:]
     for i in range(len(name)):
       name[i] = name[i]+'_'+kind
-     
-  print var
-    #for speedup get info before loop starts.
 
   if kind == 'hat':
 
@@ -75,20 +72,20 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
               'ntim': grid_nfo['ntim'],
               'nlev': grid_nfo['nlev']
         }
+    # fatal: RHO missing
     if not('RHO' in data):
       sys.exit('ERROR: area_avg kind = "hat": missing "RHO"')
-      print 'getting RHO'
-    if not 'RHO_bar' in data.data_vars:
-      print 'computing Rho_bar'
+    
+    # semi fatal: RHO_bar missing
+    if not 'RHO_bar' in data:
       data = area_avg('bar', grid_nfo, data, {'vars':['RHO']})
-    print 'initialize..'
+
     factor = {}
     factor['RHO_bar']=data['RHO_bar']
     factor['coarse_area']= grid_nfo['coarse_area']
     factor=  mult(factor)
 
   elif kind == 'bar':
-    print 'in bar'
     func= lambda val, fac, kwargs: avg_bar(val, fac, **kwargs)
     factor= grid_nfo['coarse_area']
 
@@ -106,16 +103,15 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
         'kwargs'   : kwargs
               }
     func= lambda val, fac, kwargs: avg_vec(val, fac, **kwargs)
-
-  dims   = [len_vec,grid_nfo('ntim'),grid_nfo('nlev'),grid_nfo('ncells')]
+  dims   = [len_vec,grid_nfo['ntim'],grid_nfo['nlev'],grid_nfo['ncells']]
   stack  = np.empty(dims, order='F')
 
   #create kwargs for get_members:
   for i in range(0, grid_nfo['ncells'] ):
     values=  dop.get_members(grid_nfo, data, i, var['vars'])  
-    values.update(dop.get_members(grid_nfo, data, i, ['cell_area']))
+    values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
     # divide by factor (area or rho_bar) 
-    kwargs['i'] = i
+    kwargs['i_cell'] = i
     values= func(values, factor, kwargs) 
     stack[:,:,:,i] = values
   # put into xArray
@@ -125,21 +121,21 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
 
 # call functions for area_avg
 # -----
-def avg_bar(values, factor, i):
+def avg_bar(values, factor, i_cell):
   # multiply var area values (weighting) 
   values=  mult(values)
   # Sum Rho*var(i) up
   values=  np.sum(values,0)
-  return values/factor[i]
+  return values/factor[i_cell]
 
-def avg_hat(values, factor, i, ntim, nlev):
+def avg_hat(values, factor, i_cell, ntim, nlev):
   # multiply var area values (weighting) 
   values=  mult(values)
   # Sum Rho*var(i) up
   values=  np.sum(values,0)
   for k in range(ntim):
     for j in range(nlev):
-      values[k,j] = values[k,j]/factor[k,j,i]
+      values[k,j] = values[k,j]/factor[k,j,i_cell]
   return values
 # -----
 
@@ -287,7 +283,6 @@ def mult(dataset):
       else:
         print 'I can not find a way to cast {} on {}'.format(data.shape,
             helper.shape)
-
   return helper
 
 def rotate_latlon(lat, lon, plat, plon, x, y):
