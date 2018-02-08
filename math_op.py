@@ -1,5 +1,6 @@
 # all math Operations neccessary for computations
 
+
 # I want to represent each of these as matrices. 
 # what is more effective?
 # memory wise: 
