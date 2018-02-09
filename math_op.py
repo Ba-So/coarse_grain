@@ -226,7 +226,7 @@ def vector_flucts(values, grid_dic, num_hex, vars):
 
   return values
 
-def compute_dyads(values, grid_nfo, vars):
+def compute_dyads(values, grid_nfo, i_cell, vars):
   '''computes the dyadic products of v'''
   if not(all(key in values for key in ['RHO'])):
     sys.exit('ERROR: compute_dyads, "RHO" missing in values')
@@ -250,14 +250,11 @@ def compute_dyads(values, grid_nfo, vars):
   product = np.empty([
                     l_vec,
                     l_vec,
-                    grid_nfo['area_num_hex'][grid_nfo['i_cell']],
+                    grid_nfo['area_num_hex'][i_cell],
                     grid_nfo['ntim'],
                     grid_nfo['nlev']
                     ])
 
-  print grid_nfo['area_num_hex'][grid_nfo['i_cell']]
-  print grid_nfo['i_cell']
-  print product.shape
   product.fill(0)
   # helper, containing the constituents for computation 
   constituents = []
@@ -265,20 +262,116 @@ def compute_dyads(values, grid_nfo, vars):
     constituents.append(values[var])
   # helper as handle for avg_bar, values in it are multiplied and averaged over
   helper                = {}
-  helper['cell_area']   = grid_nfo['cell_area']
+  helper['cell_area']   = values['cell_area']
   helper['RHO']         = values['RHO']
 
   for i in range(l_vec):
     for j in range(l_vec):
-      product[i,j,:,:,:] = constituents[i] * constituents[j] * values['RHO']
+      product[i,j,:,:,:] = constituents[i] * constituents[j]
   for i in range(l_vec):
     for j in range(l_vec):
-      out['product']    = product[i,j,:,:,:]
-      values['dyad'][i,j,:,:,grid_nfo['i_cell']] = avg_bar(out,
+      helper['product']    = product[i,j,:,:,:]
+      values['dyad'][i,j,:,:,i_cell] = avg_bar(helper,
                                                     grid_nfo['coarse_area'],
-                                                    grid_nfo['i_cell']
+                                                    i_cell
                                                     )
   return values
+
+def gradient(data, grid_nfo):
+
+  # define distance
+  # assume circle pi r^2 => d= 2*sqrt(A/pi)
+  # find/interpolate value at distance d in x/y direction
+  #     -> use geodesics / x/y along longditudes/latitudes
+  # turn values at distance (with rot_vec)
+  # compute d/dz use fassinterpol x_i-1+2x_i+x_i+1/dx including grid value?
+  return data
+
+def central_diff(xl, x, xr, d):
+  return (xl-2x+xr)/d**2
+
+def radius(area):
+  '''returns radius of circle on sphere in radians'''
+  re        = 6371
+  r         = np.sqrt(A/np.pi)/ re
+  return r
+
+def central_coords(lonlat, area):
+  # get radius
+  r = radius(area)
+  # coords[0,:] latitude values
+  # coords[1,:] longditude values
+  # u is merdional wind, along longditudes
+  #     -> dx along longditude
+  # v is zonal wind, along latitudes
+  #     -> dy along latitude
+  # coords[:,:2] values for dx
+  # coords[:,:2] values for dy
+  coords= np.empty([2,4])
+  coords[:,:] = lonlat
+  dlon  = np.arcsin(np.sin(r)/np.cos(lonlat[0]))
+  dlat  = r 
+  cords[0,0] = coords[0,0] - dlon
+  cords[1,0] = coords[1,0] + dlon
+  cords[2,1] = coords[2,1] - dlat
+  cords[3,1] = coords[3,1] + dlat
+  return coords
+
+def circ_dist_avg(data, grid_nfo, coords, area, var):
+  values = np.empty([len(var),4])
+  values.fill(0)
+  #how large is check radius?
+  candidates = [[],[],[],[]]
+  members    = [[],[],[],[]]
+  check_r    = radius(area)
+  for j in range(4):
+    maxcoords = central_coords(coords[j,:],area)
+    # find candidates for members of circle at target coords
+    for i_cell in range(grid_nfo['ncells']):
+      check = (
+         (maxcoords[0,0] <= grid_nfo['lat'][i] <= maxcoords[1,0])
+         and
+         (maxcoords[2,1] <= grid_nfo['lon'][i] <= maxcoords[3,1])
+         )
+      if check:
+        candidates[j].append[i_cell]
+    # verify candidates as members 
+    for k in candidates[j]:
+      r =  arc_len(coords[j,:], [grid_nfo['lon'][k], grid_nfo['lat'][k]])
+      if r <= check_r:
+        members[j].append([k,r])
+    # now compute distance weighted average of area weighted members:
+    values[:,j] = dist_avg(members[j], data, grid_nfo, var)
+
+  return values
+
+
+def dist_avg(values, data, grid_nfo, var):
+  weight = 0
+  factor = 0
+  sum    = np.empty(len(var))
+  sum.fill(0)
+  for k in range(len(var)):
+    for i in range(len(values)):
+    weight  = grid_nfo['cell_area'][values[i][0]]* values[i][1]
+    sum[k]    = data[var[k]][values[i][0]]*weight
+    factor    = factor + weight
+  sum[k]    = sum[k]/factor 
+
+  return sum 
+
+
+
+
+def arc_len(p_x, p_y):
+  '''computes length of geodesic arc on a sphere (in rad)'''
+  r = np.arccos(
+        np.sin(p_x[1])* np.sin(p_y[1])
+       +np.cos(p_x[1])* np.cos(p_y[1]) * np.cos(p_y[0]-p_x[0])
+       )
+  return r
+
+      
 
 def mult(dataset):
   dims= np.array([])

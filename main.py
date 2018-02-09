@@ -45,18 +45,26 @@ def read_data(kwargs, i):
   return cio.read_netcdfs([kwargs['file'][i]], 'time', quarks, func= lambda ds, quarks:cio.
     extract_variables(ds, **quarks)) 
 
-def do_the_hat(data, grid, kwargs):
+def do_the_average(data, grid_nfo, kwargs):
   '''computes the u and v hat values'''
-  for var in kwargs['variables']:
-    #....
+  # fairly simple
+  var={
+      vars      :['U','V'],
+      vec       :['U','V']
+      }
+  # compute \bar{U} and \bar{V}
+  data = area_avg('bar', grid_nfo, data, var, True)
+  # compute \hat{U} and \hat{V}
+  data = area_avg('hat', grid_nfo, data, var, True)
 
   return data
 
-def do_the_gradients(data, grid, kwargs):
+def do_the_gradients(data, grid_nfo, kwargs):
   '''computes the gradients of u an v'''
+
   return data
 
-def do_the_dyads(data, grid):
+def do_the_dyads(data, grid_nfo):
   '''computes the dyadic product of uv and rho plus averaging'''
   # check if everything is there
   needs = ['U','U_bar','V','V_bar','RHO', 'RHO_bar', 'lat', 'lon']
@@ -70,9 +78,6 @@ def do_the_dyads(data, grid):
       'UV'      : {'vars'   : ['U', 'V'],
                    'kind'   : 'vec'
                    }
-      'RHO'     : {'vars'   : ['RHO'],
-                   'kind'   : 'scalar'
-                   }
       'dyad'    : {'vars'   : ['U_f', 'V_f']
                    }
       }
@@ -80,27 +85,25 @@ def do_the_dyads(data, grid):
   # start cellwise iteration 
   for i in range(grid['ncells']):
     # get area members
-    values = dop.get_members(grid_dic, dat_dic, i, kwargs['vars'])
+    values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
     # add lat lon coordinates to values
-    values.update(dop.get_members(grid_dic, dat_dic, i, ['lat', 'lon']))
+    values.update(dop.get_members(grid_nfo, data, i, ['lat', 'lon']))
     # get individual areas
-    values.update(dop.get_members(grid_dic, grid_dic, i, ['area']) )
+    values.update(dop.get_members(grid_nfo, grid_nfnfoo, i, ['cell_area']) )
     # get coarse values
-    for var in kwargs['vars']:
-      values[var+'_bar']    = data[var+'_bar'].values[:,:,i]
-    values = mo.compute_flucts(values, grid_dic, grid_dic['num_area_hex'][i], **kwargs['UV'])
-    values = mo.compute_flucts(values, grid_dic, i, **kwargs['RHO'])
-    values = mo.compute_dyads(values, grid_dic, i, **kwargs['dyad'])
-    values = values / grid_dic[''] 
+    for var in kwargs['vars'][:2]:
+      values[var+'_bar']    = data[var+'_bar'][:,:,i]
+    values = mo.compute_flucts(values, grid_nfo, grid_nfo['num_area_hex'][i], **kwargs['UV'])
+    values = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
   return data
 
-def perform(data, grid, kwargs):
-  # compute u and v hat
-  data = do_the_hat(data, grid, kwargs)
+def perform(data, grid_nfo, kwargs):
+  # compute u and v hat and bar
+  data = do_the_average(data, grid_nfo, kwargs)
   # compute gradient
-  data = do_the_gradients(data, grid, kwargs)
+  data = do_the_gradients(data, grid_nfo, kwargs)
   # compute and average the dyads plus comute their primes
-  data = do_the_dyads(data, grid, kwargs)
+  data = do_the_dyads(data, grid_nfo, kwargs)
   return data 
 
 
@@ -125,6 +128,13 @@ if __name__== '__main__':
      sys.exit('Error:missing gridfiles or datafiles')
   
   grid = read_grid(kwargs['grid'])
+  grid_nfo={
+      'area_num_hex'        : grid['area_num_hex'].values,
+      'area_neighbor_idx'   : grid['area_neighbor_idx'].values,
+      'coarse_area'         : grid['coarse_area'].values,
+      'cell_area'           : grid['cell_area'].values,
+      'i_cell'              : 0 
+      }
   
   if kwargs['num_files'] > len(kwargs['files']):
     fin = len(kwargs['files'])
@@ -134,11 +144,18 @@ if __name__== '__main__':
   for i in range(fin):
     print ('file {} of {}').format(i, fin)
     data = read_data(kwargs, i)
+    grid_nfo.update({
+      'ntim'                : data.dims['time'],
+      'nlev'                : data.dims['lev'],
+      'ncells'              : data.dims['ncells'],
+      'lat'                 : data['clat'].values,
+      'lon'                 : data['clon'].values
+      })
     data_run = {}
     for var in kwargs['variables']:
       data_run[var] = data[var].values
 
-    data = perform(data_run, grid, kwargs)
+    data = perform(data_run, grid_nfo, kwargs)
     write_netcdf(kwargs['files'][i]+'refined_{}'.format(kwargs['num_rings']),
       data)
     

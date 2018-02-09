@@ -90,8 +90,7 @@ def test_compute_dyads(data, grid):
   dat_dic   = {}
   grid_nfo['i_cell'] = i_cell 
   values =  dop.get_members(grid_nfo, data, i_cell, vars)
-  print values['U'].shape
-  print grid_nfo['area_num_hex'][i_cell]
+  values.update(dop.get_members(grid_nfo, grid_nfo, i_cell, ['cell_area']))
   vars = ['U', 'V']  
   values =  mo.compute_dyads(values, grid_nfo, vars)
 
@@ -130,6 +129,6 @@ if __name__== '__main__':
  # data_s = test_vec_avg_hat(data_s, grid_nfo)
  # i = test_rotate_latlon_vec(grid)
  # data = test_compute_flucts(data, grid_nfo)
-  data_s = test_compute_dyads(data, grid_nfo)
+  data_s = test_compute_dyads(data_s, grid_nfo)
 
 
