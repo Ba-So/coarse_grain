@@ -75,6 +75,9 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
     # fatal: RHO missing
     if not('RHO' in data):
       sys.exit('ERROR: area_avg kind = "hat": missing "RHO"')
+
+    if not('RHO' in var['vars']):
+      var['vars'].append('RHO')
     
     # semi fatal: RHO_bar missing
     if not 'RHO_bar' in data:
@@ -97,6 +100,7 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
     if not(all(key in grid_nfo for key in ['lat', 'lon'])):
       sys.exit('ERROR: avg_area kind kind = vec, missing "lat" or "lon"')
     kwargs = {
+        'i_cell'   : 0,
         'grid_nfo' : grid_nfo,
         'vec'      : var['vector'], 
         'func'     : func,
@@ -139,11 +143,15 @@ def avg_hat(values, factor, i_cell, ntim, nlev):
   return values
 # -----
 
-def avg_vec(values, factor, i, grid_nfo, dat_dic, vec, func, kwargs):
-  kwargs['i'] = i
-  coords =  dop.get_members(grid_nfo, dat_dic, i, ['lat','lon'])
+def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
+  kwargs['i_cell'] = i_cell
+  coords =  dop.get_members(grid_nfo, grid_nfo, i_cell, ['lat','lon'])
   # rotating vectors.
-  rot_vec = np.empty([len(vec),grid_nfo['area_num_hex'][i], grid_nfo['ntim'], grid_nfo['nlev']])
+  rot_vec = np.empty([len(vec),
+                      grid_nfo['area_num_hex'][i_cell], 
+                      grid_nfo['ntim'], 
+                      grid_nfo['nlev']
+                      ])
   rot_vec.fill(0)
   rot_vec[:,:,:,:]  = rotate_vec(
                    coords['lon'], coords['lat'],
@@ -218,25 +226,38 @@ def vector_flucts(values, grid_dic, num_hex, vars):
 
   return values
 
-def compute_dyads(values, grid_dic, vars):
+def compute_dyads(values, grid_nfo, vars):
   '''computes the dyadic products of v'''
-  if not(all(key in values for key in ['RHO', 'cell_area'])):
-    sys.exit('ERROR: compute_dyads, "RHO" or "cell_area" missing in values')
-  if not('dyad' in values):
-    # in case of first call build output file
-    # output slot, outgoing info
-    values['dyad']        = np.emtpy([
-      l_vec,
-      l_vec,
-      grid_dic['ntim'],
-      grid_dic['nlev'],
-      grid_dic['ncells']
-     ])
+  if not(all(key in values for key in ['RHO'])):
+    sys.exit('ERROR: compute_dyads, "RHO" missing in values')
+  if not(all(key in grid_nfo for key in ['cell_area'])):
+    sys.exit('ERROR: compute_dyads, "cell_area" missing in grid_nfo')
 
   # dimension of dyad
   l_vec   = len(vars)
+
+  if not('dyad' in values):
+    # in case of first call build output file
+    # output slot, outgoing info
+    values['dyad']        = np.empty([
+      l_vec,
+      l_vec,
+      grid_nfo['ntim'],
+      grid_nfo['nlev'],
+      grid_nfo['ncells']
+     ])
   # the product of dyadic multiplication (probably term dyadic is misused here)
-  product = np.empty([l_vec,l_vec,grid_dic['area_num_hex'],grid_dic['ntim'],grid_dic['nlev']])
+  product = np.empty([
+                    l_vec,
+                    l_vec,
+                    grid_nfo['area_num_hex'][grid_nfo['i_cell']],
+                    grid_nfo['ntim'],
+                    grid_nfo['nlev']
+                    ])
+
+  print grid_nfo['area_num_hex'][grid_nfo['i_cell']]
+  print grid_nfo['i_cell']
+  print product.shape
   product.fill(0)
   # helper, containing the constituents for computation 
   constituents = []
@@ -244,7 +265,7 @@ def compute_dyads(values, grid_dic, vars):
     constituents.append(values[var])
   # helper as handle for avg_bar, values in it are multiplied and averaged over
   helper                = {}
-  helper['cell_area']   = values['cell_area']
+  helper['cell_area']   = grid_nfo['cell_area']
   helper['RHO']         = values['RHO']
 
   for i in range(l_vec):
@@ -253,9 +274,9 @@ def compute_dyads(values, grid_dic, vars):
   for i in range(l_vec):
     for j in range(l_vec):
       out['product']    = product[i,j,:,:,:]
-      values['dyad'][i,j,:,:,grid_dic['i_cell']] = avg_bar(out,
-                                                    grid_dic['coarse_area'],
-                                                    grid_dic['i_cell']
+      values['dyad'][i,j,:,:,grid_nfo['i_cell']] = avg_bar(out,
+                                                    grid_nfo['coarse_area'],
+                                                    grid_nfo['i_cell']
                                                     )
   return values
 
