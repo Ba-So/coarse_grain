@@ -277,10 +277,18 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
                                                     )
   return values
 
-def gradient(data, grid_nfo):
+def gradient(data, grid_nfo, var):
 
-  # define distance
-  # assume circle pi r^2 => d= 2*sqrt(A/pi)
+    for i in range(grid_nfo['ncells']):
+        # chekc for correct key
+          # define distance
+          # assume circle pi r^2 => d= 2*sqrt(A/pi)
+        area    = grid_nfo['hex_area'][i]
+        lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
+        coords  = central_coords(lonlat, area)
+        # check for correct keys
+        area    = grid_nfo['cell_area'][i]
+        circ_dist_avg(data, grid_nfo, coords, area, var))
   # find/interpolate value at distance d in x/y direction
   #     -> use geodesics / x/y along longditudes/latitudes
   # turn values at distance (with rot_vec)
@@ -318,10 +326,13 @@ def central_coords(lonlat, area):
   return coords
 
 def circ_dist_avg(data, grid_nfo, coords, area, var):
-  values = np.empty([len(var),4])
-  values.fill(0)
+  values = {name: np.empty([4]) for name in var['values']}
+  for name in var['values']:
+      values[name].fill(0)
   #how large is check radius?
   candidates = [[],[],[],[]]
+  member_idx = [[],[],[],[]]
+  member_rad = [[],[],[],[]]
   members    = [[],[],[],[]]
   check_r    = radius(area)
   for j in range(4):
@@ -339,24 +350,51 @@ def circ_dist_avg(data, grid_nfo, coords, area, var):
     for k in candidates[j]:
       r =  arc_len(coords[j,:], [grid_nfo['lon'][k], grid_nfo['lat'][k]])
       if r <= check_r:
-        members[j].append([k,r])
+        member_idx[j].append(k)
+        member_rad[j].append(r)
     # now compute distance weighted average of area weighted members:
-    values[:,j] = dist_avg(members[j], data, grid_nfo, var)
+      members[j]    = do.get_members_idx(data, member_idx[j], var['vars'])
+        
+      # if you suffer from boredom: This setup gives a lot of flexebility.
+      #     may be transferred to other parts of this program.
+      if 'vec' in var.iterkeys():
+          #turn vectors
+          vec   = vars['vec']
+          rot_vec = np.empty([len(vec),
+                              grid_nfo['area_num_hex'][i_cell], 
+                              grid_nfo['ntim'], 
+                              grid_nfo['nlev']
+                              ])
+          rot_vec.fill(0)
+          rot_vec[:,:,:,:]  = rotate_vec(
+                           coords[j,0], coords[j,1],
+                       members[j][vec[0]][:,:,:], members[vec[1]][:,:,:]
+                       )
+          members[j][vec[0]]   = rot_vec[0,:,:,:]
+          members[j][vec[1]]   = rot_vec[1,:,:,:]
+
+      helper         = dist_avg(members[j], member_idx[j], member_rad[j], grid_nfo, var['vars'])
+      for name in var['vars']:
+          values[name][j]   = helper[name]
 
   return values
 
 
-def dist_avg(values, data, grid_nfo, var):
-  weight = 0
+def dist_avg(members, idxcs, radii, grid_nfo, vars):
+  len_i  = len(idxcs)
+  # define weights.
+  weight = np.empty([len_i])
+  weight.fill(0)
   factor = 0
-  sum    = np.empty(len(var))
-  sum.fill(0)
-  for k in range(len(var)):
-    for i in range(len(values)):
-    weight  = grid_nfo['cell_area'][values[i][0]]* values[i][1]
-    sum[k]    = data[var[k]][values[i][0]]*weight
-    factor    = factor + weight
-  sum[k]    = sum[k]/factor 
+  for k in range(len_i):
+    weight[k] = grid_nfo['cell_area'][idxcs[k]]* radii[k]
+    factor    = factor + weight[k]
+  # compute distance averages.
+  sum    = {name : 0 for name in vars}
+  for k in vars:
+    for i in range(len_i):
+        sum[k]    = sum[k] + members[k][i]*weight[i]
+      sum[k]    = sum[k]/factor 
 
   return sum 
 
@@ -392,6 +430,7 @@ def mult(dataset):
         for i in range(data.shape[0]):
           helper[:,i,:] = helper[:,i,:]*data[i]
       elif data.shape[0] == helper.shape[2]:
+
         for i in range(data.shape[0]):
           helper[:,:,i] = helper[:,:,i]*data[i]
       else:
