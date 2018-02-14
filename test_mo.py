@@ -118,6 +118,40 @@ def test_arc_len(grid_nfo):
   print distance
   return None
 
+def test_circ_dist_avg(data, grid_nfo):
+  i_cell    = 3
+  lonlat    = [grid_nfo['lon'][i_cell],grid_nfo['lat'][i_cell]]
+  print lonlat
+  area      = grid_nfo['coarse_area'][i_cell]
+  coords    = mo.central_coords(lonlat, area)
+  print coords[1,:]
+  print coords
+  # test scalar only
+  area      = grid_nfo['cell_area'][i_cell]
+  var       = {
+        'vars': ['RHO'],
+      } 
+  values    = mo.circ_dist_avg(data, grid_nfo, coords, area, var)
+  print values
+  # test with vector
+#  var       = {
+#        'vars': ['U', 'V', 'RHO'],
+#        'vec' : ['U', 'V']
+#      } 
+#  values    = mo.circ_dist_avg(data, grid_nfo, coords, area, var)
+#  print values
+  return values
+   
+
+def test_turn_spherical(grid_nfo):
+  lonlat = [grid_nfo['lon'][300], grid_nfo['lat'][300]]
+  print lonlat
+  new_co = np.array(mo.rotate_latlon(lonlat, grid_nfo))
+  print new_co[:,3]
+  
+  test = True
+  return new_co
+
 if __name__== '__main__':
   filep = u'/home1/kd031/projects/icon/experiments/HS_FT_3000_days/'
   filen = [
@@ -154,4 +188,6 @@ if __name__== '__main__':
  # data_s = test_radius(3.0)
  # print data_s
  # data_s = test_central_coords(data, grid_nfo)
-  data_s = test_arc_len(grid_nfo)
+ # data_s = test_arc_len(grid_nfo)
+ # data_s = test_circ_dist_avg(data, grid_nfo)
+  data_s = test_turn_spherical(grid_nfo)
