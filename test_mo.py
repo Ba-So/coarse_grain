@@ -114,7 +114,7 @@ def test_arc_len(grid_nfo):
   i_two = 4
   p_one = [grid_nfo['lon'][i_one], grid_nfo['lat'][i_one]]
   p_two = [grid_nfo['lon'][i_two], grid_nfo['lat'][i_two]]
-  distance  = arc_len(p_one, p_two)
+  distance  = mo.arc_len(p_one, p_two)
   print distance
   return None
 
@@ -154,4 +154,4 @@ if __name__== '__main__':
  # data_s = test_radius(3.0)
  # print data_s
  # data_s = test_central_coords(data, grid_nfo)
-
+  data_s = test_arc_len(grid_nfo)
