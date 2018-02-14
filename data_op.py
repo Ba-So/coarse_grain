@@ -118,6 +118,21 @@ def get_members(grid_nfo, data, i, variables):
 
   return out 
 
+def get_members_idx(data, idxcs, variables):
+  '''gets members of a hex_area'''
+  # functional and used. 
+  out       = {} 
+
+  for var in variables:
+    if data[var].ndim == 3:
+      out[var] = np.array([data[var][:,:,j] for j in idxcs)
+    if data[var].ndim == 2:
+      out[var] = np.array([data[var][:,j] for j in idxcs)
+    if data[var].ndim == 1:
+      out[var] = np.array([data[var][j] for j in idxcs)
+
+  return out 
+
 # unfunctional as of yet?
 def compute_uv_dyads(grid, data):
   data =    mop.area_avg_vec('hat', grid, data, ['U','V'])
