@@ -279,16 +279,16 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
 
 def gradient(data, grid_nfo, var):
 
-    for i in range(grid_nfo['ncells']):
-        # chekc for correct key
-          # define distance
-          # assume circle pi r^2 => d= 2*sqrt(A/pi)
-        area    = grid_nfo['hex_area'][i]
-        lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
-        coords  = central_coords(lonlat, area)
-        # check for correct keys
-        area    = grid_nfo['cell_area'][i]
-        circ_dist_avg(data, grid_nfo, coords, area, var))
+  for i in range(grid_nfo['ncells']):
+    # chekc for correct key
+      # define distance
+      # assume circle pi r^2 => d= 2*sqrt(A/pi)
+    area    = grid_nfo['hex_area'][i]
+    lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
+    coords  = central_coords(lonlat, area)
+    # check for correct keys
+    area    = grid_nfo['cell_area'][i]
+    circ_dist_avg(data, grid_nfo, coords, area, var)
   # find/interpolate value at distance d in x/y direction
   #     -> use geodesics / x/y along longditudes/latitudes
   # turn values at distance (with rot_vec)
@@ -296,12 +296,12 @@ def gradient(data, grid_nfo, var):
   return data
 
 def central_diff(xl, x, xr, d):
-  return (xl-2x+xr)/d**2
+  return (xl-2*x+xr)/d**2
 
 def radius(area):
   '''returns radius of circle on sphere in radians'''
-  re        = 6371
-  r         = np.sqrt(A/np.pi)/ re
+  re        = 6371000
+  r         = np.sqrt(area/np.pi)/ re
   return r
 
 def central_coords(lonlat, area):
@@ -315,14 +315,13 @@ def central_coords(lonlat, area):
   #     -> dy along latitude
   # coords[:,:2] values for dx
   # coords[:,:2] values for dy
-  coords= np.empty([2,4])
-  coords[:,:] = lonlat
+  coords = np.array([lonlat for j in range(4)])
   dlon  = np.arcsin(np.sin(r)/np.cos(lonlat[0]))
   dlat  = r 
-  cords[0,0] = coords[0,0] - dlon
-  cords[1,0] = coords[1,0] + dlon
-  cords[2,1] = coords[2,1] - dlat
-  cords[3,1] = coords[3,1] + dlat
+  coords[0,0] = coords[0,0] - dlon
+  coords[1,0] = coords[1,0] + dlon
+  coords[2,1] = coords[2,1] - dlat
+  coords[3,1] = coords[3,1] + dlat
   return coords
 
 def circ_dist_avg(data, grid_nfo, coords, area, var):
@@ -393,7 +392,7 @@ def dist_avg(members, idxcs, radii, grid_nfo, vars):
   sum    = {name : 0 for name in vars}
   for k in vars:
     for i in range(len_i):
-        sum[k]    = sum[k] + members[k][i]*weight[i]
+      sum[k]    = sum[k] + members[k][i]*weight[i]
       sum[k]    = sum[k]/factor 
 
   return sum 

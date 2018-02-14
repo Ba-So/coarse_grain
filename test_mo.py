@@ -96,6 +96,27 @@ def test_compute_dyads(data, grid):
 
   return values
   
+def test_radius(radius):
+  area  = radius**2*np.pi
+  t_rad = mo.radius(area)
+  return t_rad == radius/6371 
+
+def test_central_coords(data, grid_nfo):
+  i_cell    = 3
+  lonlat    = [grid_nfo['lon'][i_cell],grid_nfo['lat'][i_cell]]
+  area      = grid_nfo['coarse_area'][i_cell]
+  coords    = mo.central_coords(lonlat, area)
+  print coords
+  return None
+
+def test_arc_len(grid_nfo):
+  i_one = 3
+  i_two = 4
+  p_one = [grid_nfo['lon'][i_one], grid_nfo['lat'][i_one]]
+  p_two = [grid_nfo['lon'][i_two], grid_nfo['lat'][i_two]]
+  distance  = arc_len(p_one, p_two)
+  print distance
+  return None
 
 if __name__== '__main__':
   filep = u'/home1/kd031/projects/icon/experiments/HS_FT_3000_days/'
@@ -129,6 +150,8 @@ if __name__== '__main__':
  # data_s = test_vec_avg_hat(data_s, grid_nfo)
  # i = test_rotate_latlon_vec(grid)
  # data = test_compute_flucts(data, grid_nfo)
-  data_s = test_compute_dyads(data_s, grid_nfo)
-
+ # data_s = test_compute_dyads(data_s, grid_nfo)
+ # data_s = test_radius(3.0)
+ # print data_s
+ # data_s = test_central_coords(data, grid_nfo)
 
