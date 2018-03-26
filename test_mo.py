@@ -1,8 +1,8 @@
-import math_op as mo
 import numpy as np
+import math_op as mo
 import custom_io as cio
 import data_op as dop
-import xarray as xr 
+import xarray as xr
 
 
 def test_coarse_area(files):
@@ -19,30 +19,40 @@ def test_area_avg_bar(data, grid_nfo):
   kind= 'bar'
   var = {
         'vars' : ['U']
-      } 
+      }
   data = mo.area_avg(kind, grid_nfo, data, var)
-  return data 
+  return data
 
 def test_area_avg_hat(data, grid_nfo):
   kind= 'hat'
   var = {
         'vars' : ['U']
-      } 
+      }
   data = mo.area_avg(kind, grid_nfo, data, var)
-  return data 
+  return data
 
 def test_vec_avg_hat(data, grid_nfo):
   kind= 'hat'
   var = {
         'vars' : ['U','V'],
         'vector':['U','V']
-      } 
+      }
   data= mo.area_avg(kind, grid_nfo, data, var, True)
-  return data 
+  for i in range(grid_nfo['ncells']):
+    data['U_hat'][:,:,i], data['V_hat'][:,:,i] = mo.rotate_back(
+        grid_nfo['lon'][i], grid_nfo['lat'][i],
+        data['U_hat'][:,:,i], data['V_hat'][:,:,i]
+        )
+
+
+  data['bar_sq']    = np.sqrt(data['U_hat']**2 + data['V_hat']**2)
+  data['sq']        = np.sqrt(data['U']**2 + data['V']**2)
+
+  return data
 
 def test_rotate_latlon_vec(grid):
   data_dic = {}
-  dat_dic ={      
+  dat_dic ={
           'lat': grid['lat'].values,
           'lon': grid['lon'].values
           }
@@ -65,7 +75,7 @@ def test_rotate_latlon_vec(grid):
   return None
 
 def test_compute_flucts(data, grid_nfo):
-  vars = ['U', 'V']  
+  vars = ['U', 'V']
   i_cell = 5
   grid_nfo['i_cell'] = i_cell
   kind   = 'vec'
@@ -76,37 +86,47 @@ def test_compute_flucts(data, grid_nfo):
     values[var+'_bar']  = values[var][0,:, :]
 
   values.update(dop.get_members(grid_nfo, grid_nfo, i_cell, ['lat', 'lon']))
-  
+
   values =  mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i_cell], vars, kind)
   kind = 'scalar'
   values =  mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i_cell], vars, kind)
 
-  return values 
+  return values
 
 def test_compute_dyads(data, grid):
-  vars = ['U', 'V', 'RHO']  
+  vars = ['U', 'V', 'RHO']
   i_cell = 5
   kind   = 'vec'
   dat_dic   = {}
-  grid_nfo['i_cell'] = i_cell 
+  grid_nfo['i_cell'] = i_cell
   values =  dop.get_members(grid_nfo, data, i_cell, vars)
   values.update(dop.get_members(grid_nfo, grid_nfo, i_cell, ['cell_area']))
-  vars = ['U', 'V']  
+  vars = ['U', 'V']
   values =  mo.compute_dyads(values, grid_nfo, vars)
 
   return values
-  
+
 def test_radius(radius):
   area  = radius**2*np.pi
   t_rad = mo.radius(area)
-  return t_rad == radius/6371 
+  return t_rad == radius/6371
 
-def test_central_coords(data, grid_nfo):
+def test_max_min_bounds(data, grid_nfo):
   i_cell    = 3
-  lonlat    = [grid_nfo['lon'][i_cell],grid_nfo['lat'][i_cell]]
-  area      = grid_nfo['coarse_area'][i_cell]
-  coords    = mo.central_coords(lonlat, area)
-  print coords
+  for i_cell in range(3, 100):
+    lonlat    = [grid_nfo['lon'][i_cell],grid_nfo['lat'][i_cell]]
+    area      = grid_nfo['coarse_area'][i_cell]
+    bounds    = mo.max_min_bounds(lonlat, area)
+    print bounds
+  print('{}').format(np.shape(bounds))
+  return None
+
+def test_gradient_coordinates(grid_nfo):
+  for i_cell in range(3,100):
+    area = grid_nfo['cell_area'][i_cell]
+    lonlat = [grid_nfo['lon'][i_cell], grid_nfo['lat'][i_cell]]
+    coords = mo.gradient_coordinates(lonlat, area)
+    print coords
   return None
 
 def test_arc_len(grid_nfo):
@@ -123,32 +143,32 @@ def test_circ_dist_avg(data, grid_nfo):
   lonlat    = [grid_nfo['lon'][i_cell],grid_nfo['lat'][i_cell]]
   print lonlat
   area      = grid_nfo['coarse_area'][i_cell]
-  coords    = mo.central_coords(lonlat, area)
+  coords    = mo.gradient_coordinates(lonlat, area)
   print coords[1,:]
   print coords
   # test scalar only
   area      = grid_nfo['cell_area'][i_cell]
   var       = {
         'vars': ['RHO'],
-      } 
+      }
   values    = mo.circ_dist_avg(data, grid_nfo, coords, area, var)
   print values
   # test with vector
 #  var       = {
 #        'vars': ['U', 'V', 'RHO'],
 #        'vec' : ['U', 'V']
-#      } 
+#      }
 #  values    = mo.circ_dist_avg(data, grid_nfo, coords, area, var)
 #  print values
   return values
-   
+
 
 def test_turn_spherical(grid_nfo):
   lonlat = [grid_nfo['lon'][300], grid_nfo['lat'][300]]
   print lonlat
   new_co = np.array(mo.rotate_latlon(lonlat, grid_nfo))
   print new_co[:,3]
-  
+
   test = True
   return new_co
 
@@ -161,9 +181,9 @@ if __name__== '__main__':
   gridf = u'iconR2B05-grid_refined_3.nc'
   grid = cio.read_netcdfs([filep+gridf], 'time')
   grid = mo.coarse_area(grid)
-  kwargs = {'variables' : ['U','V','RHO']} 
+  kwargs = {'variables' : ['U','V','RHO']}
   data= cio.read_netcdfs([filen[0]], 'time', kwargs, func= lambda ds, kwargs:cio.
-      extract_variables(ds, **kwargs)) 
+      extract_variables(ds, **kwargs))
   grid_nfo={
       'area_num_hex'        : grid['area_num_hex'].values,
       'area_neighbor_idx'   : grid['area_neighbor_idx'].values,
@@ -174,7 +194,7 @@ if __name__== '__main__':
       'ncells'              : data.dims['ncells'],
       'lat'                 : data['clat'].values,
       'lon'                 : data['clon'].values,
-      'i_cell'              : 0 
+      'i_cell'              : 0
       }
   data_s = {}
   for var in kwargs['variables']:
@@ -187,7 +207,8 @@ if __name__== '__main__':
  # data_s = test_compute_dyads(data_s, grid_nfo)
  # data_s = test_radius(3.0)
  # print data_s
- # data_s = test_central_coords(data, grid_nfo)
+ # data_s = test_max_min_bounds(data, grid_nfo)
  # data_s = test_arc_len(grid_nfo)
- # data_s = test_circ_dist_avg(data, grid_nfo)
-  data_s = test_turn_spherical(grid_nfo)
+  data_s = test_circ_dist_avg(data, grid_nfo)
+ # data_s = test_turn_spherical(grid_nfo)
+ # data_s = test_gradient_coordinates(grid_nfo)

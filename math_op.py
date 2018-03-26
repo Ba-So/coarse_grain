@@ -1,9 +1,9 @@
 # all math Operations neccessary for computations
 
 
-# I want to represent each of these as matrices. 
+# I want to represent each of these as matrices.
 # what is more effective?
-# memory wise: 
+# memory wise:
 #           computing smaller matrices on the fly
 #           I'd need gridsize times 3 matrices,
 #           1 - rhov''v''
@@ -13,10 +13,10 @@
 # *  Routine for projection of vectors (see ICON code)
 # *  Routine for conversion of lat-lon to carthesian coordinates and back (for
 #   projection)
-# *  
+# *
 # TODO:
 # *  Find out about Python parallelization to speed this up
-# *  
+# *
 import os
 import sys
 import xarray as xr
@@ -36,23 +36,23 @@ def coarse_area(grid):
     for j in range(0, a_num_hex[i]):
         ij = a_nei_idx[j,i]
         co_ar[i] += cell_a[ij]
-  
+
   coarse_area = xr.DataArray(
             co_ar,
             dims = ['ncells']
             )
   kwargs = {'coarse_area' : coarse_area}
   grid = grid.assign(**kwargs)
-  
+
   return grid
 
 def area_avg(kind, grid_nfo, data, var, vec = False):
   '''computes the bar average over all vars (multiplied)'''
   helper = {}
-  name   = [] 
+  name   = []
   dat_dic  = {}
   kwargs = {}
-  
+
   if not vec:
     len_vec= 1
     name.append('')
@@ -60,7 +60,7 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
       name[0]  = name[0]+va
     name[0] = name[0]+'_'+kind
   else:
-    len_vec= len(var['vector']) 
+    len_vec= len(var['vector'])
     name = var['vector'][:]
     for i in range(len(name)):
       name[i] = name[i]+'_'+kind
@@ -78,7 +78,7 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
 
     if not('RHO' in var['vars']):
       var['vars'].append('RHO')
-    
+
     # semi fatal: RHO_bar missing
     if not 'RHO_bar' in data:
       data = area_avg('bar', grid_nfo, data, {'vars':['RHO']})
@@ -102,7 +102,7 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
     kwargs = {
         'i_cell'   : 0,
         'grid_nfo' : grid_nfo,
-        'vec'      : var['vector'], 
+        'vec'      : var['vector'],
         'func'     : func,
         'kwargs'   : kwargs
               }
@@ -112,28 +112,28 @@ def area_avg(kind, grid_nfo, data, var, vec = False):
 
   #create kwargs for get_members:
   for i in range(0, grid_nfo['ncells'] ):
-    values=  dop.get_members(grid_nfo, data, i, var['vars'])  
+    values=  dop.get_members(grid_nfo, data, i, var['vars'])
     values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
-    # divide by factor (area or rho_bar) 
+    # divide by factor (area or rho_bar)
     kwargs['i_cell'] = i
-    values= func(values, factor, kwargs) 
+    values= func(values, factor, kwargs)
     stack[:,:,:,i] = values
   # put into xArray
   for i in range(len_vec):
-    data[name[i]] = stack[i,:,:,:] 
+    data[name[i]] = stack[i,:,:,:]
   return data
 
 # call functions for area_avg
 # -----
 def avg_bar(values, factor, i_cell):
-  # multiply var area values (weighting) 
+  # multiply var area values (weighting)
   values=  mult(values)
   # Sum Rho*var(i) up
   values=  np.sum(values,0)
   return values/factor[i_cell]
 
 def avg_hat(values, factor, i_cell, ntim, nlev):
-  # multiply var area values (weighting) 
+  # multiply var area values (weighting)
   values=  mult(values)
   # Sum Rho*var(i) up
   values=  np.sum(values,0)
@@ -144,16 +144,18 @@ def avg_hat(values, factor, i_cell, ntim, nlev):
 # -----
 
 def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
+  # from here on we stay in local_coordinates. Only revert back after all the
+  # operations have been performed.
   kwargs['i_cell'] = i_cell
   coords =  dop.get_members(grid_nfo, grid_nfo, i_cell, ['lat','lon'])
   # rotating vectors.
   rot_vec = np.empty([len(vec),
-                      grid_nfo['area_num_hex'][i_cell], 
-                      grid_nfo['ntim'], 
+                      grid_nfo['area_num_hex'][i_cell],
+                      grid_nfo['ntim'],
                       grid_nfo['nlev']
                       ])
   rot_vec.fill(0)
-  rot_vec[:,:,:,:]  = rotate_vec(
+  rot_vec[:,:,:,:]  = do_the_rotation(
                    coords['lon'], coords['lat'],
                    values[vec[0]][:,:,:], values[vec[1]][:,:,:]
                    )
@@ -164,21 +166,21 @@ def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
   for key in values:
     if key not in vec:
       help_dic[key] = values[key]
-  values_vec = [] 
+  values_vec = []
   for j in range(len(vec)):
     values_vec.append({vec[j] : rot_vec[j,:,:,:]})
     values_vec[j].update(help_dic)
 
   # computing averages
-  helper = np.empty([len(vec),grid_nfo['ntim'],grid_nfo['nlev']]) 
+  helper = np.empty([len(vec),grid_nfo['ntim'],grid_nfo['nlev']])
   for j in range(len(vec)):
     # func is either avg_hat or avg_bar
     helper[j,:,:]  = func(values_vec[j], factor, kwargs)
-  return helper 
+  return helper
 
 def compute_flucts(values, grid_dic, num_hex, vars, kind):
   '''computes the fluctuations relative to the hat quantities.'''
-  
+
   kwargs = {
       'num_hex' : num_hex,
       'values' : values,
@@ -192,10 +194,10 @@ def compute_flucts(values, grid_dic, num_hex, vars, kind):
   #  func = ...
     func= lambda kwargs: scalar_flucts(**kwargs)
   else:
-    sys.exit('ERROR: compute_flucts not ia valid "kind" {}').format(kwargs['kind'])  
-   
+    sys.exit('ERROR: compute_flucts not ia valid "kind" {}').format(kwargs['kind'])
+
   values = func(kwargs)
-     
+
   return values
 
 def scalar_flucts(values, grid_dic, num_hex, vars):
@@ -203,17 +205,18 @@ def scalar_flucts(values, grid_dic, num_hex, vars):
   result    = np.empty([num_hex, grid_dic['ntim'], grid_dic['nlev']])
   for i in range(len(vars) ):
     result.fill(0)
-    for j in range(num_hex): 
+    for j in range(num_hex):
       result[j,:,:]     = values[vars[i]][ j, :, :] - values[vars[i]+'_bar'][:,:]
     values[vars[i]+'_f'] = result
 
-  return values 
+  return values
 
 def vector_flucts(values, grid_dic, num_hex, vars):
+  # same here. Staying in local coordinates.
 
   rot_vec = np.empty([len(vars),num_hex, grid_dic['ntim'], grid_dic['nlev']])
   rot_vec.fill(0)
-  rot_vec[:,:,:,:]  = rotate_vec(
+  rot_vec[:,:,:,:]  = do_the_rotation(
                    values['lon'], values['lat'],
                    values[vars[0]][:,:,:], values[vars[1]][:,:,:]
                    )
@@ -256,7 +259,7 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
                     ])
 
   product.fill(0)
-  # helper, containing the constituents for computation 
+  # helper, containing the constituents for computation
   constituents = []
   for var in vars:
     constituents.append(values[var])
@@ -279,16 +282,39 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
 
 def gradient(data, grid_nfo, var):
 
+  data['gradient']  = np.array([
+        grid_nfo['ncells'], 2, 2,
+        grid_nfo['ntim'], grid_nfo['nlev']
+        ])
+
   for i in range(grid_nfo['ncells']):
     # chekc for correct key
       # define distance
       # assume circle pi r^2 => d= 2*sqrt(A/pi)
-    area    = grid_nfo['hex_area'][i]
+    area    = grid_nfo['coarse_area'][i]
     lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
-    coords  = central_coords(lonlat, area)
+    coords  = gradient_coordinates(lonlat, area)
     # check for correct keys
     area    = grid_nfo['cell_area'][i]
-    circ_dist_avg(data, grid_nfo, coords, area, var)
+    neighs  = circ_dist_avg(data, grid_nfo, coords, area, var)
+    d       = radius(area)
+    data['gradient'][i,0,0,:,:]   = central_diff(
+        neighs['U'][0], data['U'][i], neighs['U'][1],
+        d
+        )
+    data['gradient'][i,0,1,:,:]  = central_diff(
+        neighs['V'][0], data['V'][i], neighs['V'][1],
+        d
+        )
+    data['gradient'][i,1,0,:,:]   = central_diff(
+        neighs['U'][2], data['U'][i], neighs['U'][3],
+        d
+        )
+    data['gradient'][i,1,1,:,:]   = central_diff(
+        neighs['V'][2], data['V'][i], neighs['V'][3],
+        d
+        )
+
   # find/interpolate value at distance d in x/y direction
   #     -> use geodesics / x/y along longditudes/latitudes
   # turn values at distance (with rot_vec)
@@ -304,7 +330,7 @@ def radius(area):
   r         = np.sqrt(area/np.pi)/ re
   return r
 
-def central_coords(lonlat, area):
+def max_min_bounds(lonlat, area):
   # get radius
   r = radius(area)
   # coords[0,:] latitude values
@@ -315,24 +341,89 @@ def central_coords(lonlat, area):
   #     -> dy along latitude
   # coords[:,:2] values for dx
   # coords[:,:2] values for dy
-  coords = np.array([lonlat for j in range(4)])
-  print lonlat[0]
-  print r
-  # See Bronstein p. 182 Tagentpoints to circle on a sphere
-  print ('{}/{}').format(np.sin(lonlat[1]), np.cos(r))
-  lat_hlp   = np.arcsin(np.sin(lonlat[1])/np.cos(r))
-  print lonlat[1]
-  dlon  = np.arccos(
-            (np.cos(r)-np.sin(lat_hlp)*np.sin(lonlat[1]))
-           /(np.cos(lat_hlp)*np.cos(lonlat[1]))
-           )
-  print dlon
-  dlat  = r 
-  coords[0,0] = coords[0,0] - dlon
-  coords[1,0] = coords[1,0] + dlon
-  coords[2,1] = coords[2,1] - dlat
-  coords[3,1] = coords[3,1] + dlat
+  # computing minimum and maximum latitudes
+  lock = False
+  lat_min = lonlat[1] - r
+  lat_max = lonlat[1] + r
+  if lat_max > np.pi/2:
+      # northpole in query circle:
+      bounds = np.array([[lat_min, -np.pi],[np.pi/2, np.pi]])
+      lock = True
+  elif lat_min < -np.pi/2:
+      # southpole in query circle:
+      bounds = np.array([[-np.pi/2, -np.pi],[lat_max, np.pi]])
+      lock = True
+  else:
+      # no pole in query circle
+      bounds = np.array([[lat_min, -np.pi], [lat_max, np.pi]])
+  # computing minimum and maximum longditudes:
+  if not lock:
+    lat_T = np.arcsin(np.sin(lonlat[1])/np.cos(r))
+    d_lon = np.arccos(
+        (np.cos(r) - np.sin(lat_T) * np.sin(lonlat[1]))
+        /(np.cos(lat_T)*np.cos(lonlat[1]))
+        )
+    lon_min = lonlat[0] - d_lon
+    lon_max = lonlat[0] + d_lon
+    if lon_min < -np.pi:
+        bounds = np.array([bounds, bounds])
+        bounds[0, 0, 1] = lon_min + 2 * np.pi
+        bounds[0, 1, 1] = np.pi
+        #and
+        bounds[1, 0, 1] = - np.pi
+        bounds[1, 1, 1] = lon_max
+    elif lon_max > np.pi:
+        bounds = np.array([bounds, bounds])
+        bounds[0, 0, 1] = lon_min
+        bounds[0, 1, 1] = np.pi
+        #and
+        bounds[1, 0, 1] = - np.pi
+        bounds[1, 1, 1] = lon_max - 2 * np.pi
+    else:
+        bounds = np.array([bounds])
+        bounds[0, 0, 1] = lon_min
+        bounds[0, 1, 1] = lon_max
+  else:
+      bounds = np.array([bounds])
+  return bounds
+
+def gradient_coordinates(lonlat, area):
+
+  r = radius(area)
+  lat_min = lonlat[1] - r
+  lat_max = lonlat[1] + r
+  if lat_max > np.pi/2:
+      # northpole in query circle:
+      lat_max = lat_max - np.pi
+  elif lat_min < -np.pi/2:
+      # southpole in query circle:
+      lat_min = lat_min + np.pi
+  r = r / np.cos(lonlat[1])
+  lon_min = lonlat[0] - r
+  lon_max = lonlat[0] + r
+  if lon_min < -np.pi:
+    lon_min = lon_min + np.pi
+  elif lon_max > np.pi:
+    lon_max = lon_max - np.pi
+
+  coords = np.array([
+                    np.array([lon_min, lat_min]),
+                    np.array([lon_min, lat_max]),
+                    np.array([lon_max, lat_min]),
+                    np.array([lon_max, lat_max])
+                    ])
   return coords
+
+def check_if_in_bounds(bounds, lon, lat):
+    check = False
+    for i in range(np.shape(bounds)[0]):
+        check_lat = bounds[i, 0, 0] <= lat <= bounds[i, 1, 0]
+        check_lon = bounds[i, 0, 1] <= lon <= bounds[i, 1, 1]
+        if check_lat and check_lon:
+            check = True
+
+    return check
+
 
 def circ_dist_avg(data, grid_nfo, coords, area, var):
   values = {name: np.empty([4,grid_nfo['ntim'],grid_nfo['nlev']]) for name in var['vars']}
@@ -340,47 +431,56 @@ def circ_dist_avg(data, grid_nfo, coords, area, var):
     values[name].fill(0)
   #how large is check radius?
   candidates = [[],[],[],[]]
-  member_idx = [[],[],[],[]]
-  member_rad = [[],[],[],[]]
-  members    = [[],[],[],[]]
   check_r    =4 *radius(area)
   for j in range(4):
-    maxcoords = central_coords(coords[j,:],16*area)
-    print maxcoords
+    member_idx = []
+    member_rad = []
+    members    = []
+    bounds = max_min_bounds(coords[j,:],16*area)
+    print('bounds are: {}').format(bounds)
     # find candidates for members of circle at target coords
     for i_cell in range(grid_nfo['ncells']):
-      check_lon = (maxcoords[0,0] <= grid_nfo['lon'][i_cell] <= maxcoords[1,0])
-      check_lat = (maxcoords[2,1] <= grid_nfo['lat'][i_cell] <= maxcoords[3,1])
-      if check_lon and check_lat:
-        candidates[j].append(i_cell)
-    # verify candidates as members 
-    for k in candidates[j]:
+      if check_if_in_bounds(bounds,
+                            grid_nfo['lon'][i_cell],
+                            grid_nfo['lat'][i_cell]
+                            ):
+        candidates.append(i_cell)
+    # verify candidates as members
+    for k in candidates:
       r =  arc_len(coords[j,:], [grid_nfo['lon'][k], grid_nfo['lat'][k]])
       if r <= check_r:
-        member_idx[j].append(k)
-        member_rad[j].append(r)
+        member_idx.append(k)
+        member_rad.append(r)
   # now compute distance weighted average of area weighted members:
-    members[j]    = dop.get_members_idx(data, member_idx[j], var['vars'])
-    print ('members are: {}').format(member_idx[j])
+    members    = dop.get_members_idx(data, member_idx, var['vars'])
+    print ('members are: {}').format(member_idx)
     # if you suffer from boredom: This setup gives a lot of flexebility.
     #     may be transferred to other parts of this program.
-    if 'vec' in var.iterkeys():
+    if 'vector' in var.iterkeys():
         #turn vectors
         vec   = vars['vec']
         rot_vec = np.empty([len(vec),
-                            grid_nfo['area_num_hex'][i_cell], 
-                            grid_nfo['ntim'], 
+                            grid_nfo['area_num_hex'][i_cell],
+                            grid_nfo['ntim'],
                             grid_nfo['nlev']
                             ])
         rot_vec.fill(0)
-        rot_vec[:,:,:,:]  = rotate_vec(
-                         coords[j,0], coords[j,1],
-                     members[j][vec[0]][:,:,:], members[vec[1]][:,:,:]
+        rot_vec[:,:,:,:]  = do_the_rotation(
+                     coords[j,0], coords[j,1],
+                     members[vec[0]][:,:,:], members[vec[1]][:,:,:]
                      )
-        members[j][vec[0]]   = rot_vec[0,:,:,:]
-        members[j][vec[1]]   = rot_vec[1,:,:,:]
+        members[vec[0]]   = rot_vec[0,:,:,:]
+        members[vec[1]]   = rot_vec[1,:,:,:]
 
-    helper         = dist_avg(members[j], member_idx[j], member_rad[j], grid_nfo, var['vars'])
+    helper         = dist_avg(members, member_idx, member_rad, grid_nfo, var['vars'])
+    if 'vector' in var.iterkeys():
+        rot_vec = rotate_back(
+                     coords[j,0], coords[j,1],
+                     helper[vec[0]][:,:], helper[vec[1]][:,:]
+                     )
+        helper[vec[0]]   = rot_vec[0,:,:]
+        helper[vec[1]]   = rot_vec[1,:,:]
+
     for name in var['vars']:
         values[name][j]   = helper[name]
 
@@ -392,17 +492,17 @@ def dist_avg(members, idxcs, radii, grid_nfo, vars):
   weight = np.empty([len_i])
   weight.fill(0)
   factor = 0
-  for k in range(len_i):
-    weight[k] = grid_nfo['cell_area'][idxcs[k]]* radii[k]
-    factor    = factor + weight[k]
+  for i in range(len_i):
+    weight[i] = grid_nfo['cell_area'][idxcs[i]]* radii[i]
+    factor    = factor + weight[i]
   # compute distance averages.
   sum    = {name : 0 for name in vars}
   for k in vars:
     for i in range(len_i):
       sum[k]    = sum[k] + members[k][i]*weight[i]
-      sum[k]    = sum[k]/factor 
+    sum[k]    = sum[k]/factor
 
-  return sum 
+  return sum
 
 def arc_len(p_x, p_y):
   '''computes length of geodesic arc on a sphere (in rad)'''
@@ -426,7 +526,7 @@ def turn_spherical(lonlat, grid_nfo):
         np.sin(lons) , np.tan(lats) * np.sin(turn_by[1])
       + np.cos(lons) * np.cos(turn_by[1])
     ) - turn_by[0]
-      
+
   n_lats    = np.arcsin(
         np.cos(turn_by[1]) * np.sin(lats)
       - np.sin(turn_by[1]) * np.cos(lats) * np.cos(lons)
@@ -442,7 +542,6 @@ def turn_spherical(lonlat, grid_nfo):
 
   return n_lons, n_lats
 
-
 def mult(dataset):
   dims= np.array([])
   for val in dataset.itervalues():
@@ -453,7 +552,7 @@ def mult(dataset):
   helper.fill(1)
   for data in dataset.itervalues():
     if data.shape == helper.shape:
-      helper = np.multiply(helper, data)  
+      helper = np.multiply(helper, data)
     elif data.ndim == 1:
       if data.shape[0] == helper.shape[0]:
         for i in range(data.shape[0]):
@@ -470,64 +569,130 @@ def mult(dataset):
             helper.shape)
   return helper
 
-def rotate_latlon(lonlat, grid_nfo):
-  ''' rotates lat and lon for better bilinear interpolation
-      taken from ICON 
-      may be disfunctional!'''
-  plon = lonlat[0]
-  plat = lonlat[1]
-  if lonlat[0] > 0:
-    plon = np.pi + plon
-  elif lonlat[0] <= 0:
-    plon = np.pi - plon
 
-  if lonlat[1] > 0:
-    plat = np.pi/2 + plat
-  elif lonlat[1] <= 0:
-    plat = np.pi/2 - plat
-  
-  lon  = grid_nfo['lon']
-  lat  = grid_nfo['lat']
+# see COSMO DynamicsNumerics description
+#........................phi|................................
+#...........................|................................
+#...........................|                          ///
+#...........................|                         ///
+#\                          |                       ///
+#\\\  phi'                  |                     /// lam'
+#..\\\                      |                   ///
+#   \\\                     |                 ///
+#     \\\                   |            .  ///
+#       \\\                 |             ///
+#         \\\               |           ///
+#           \\\             |         ///
+#             \\\           |       ///.
+#               \\\         |     ///  ..
+#                 \\\       |    //     ..                  .
+#                   \\\     |  ///      ..
+#                     \\\   |///  d      ..
+#                       \\\.|//          ..               lam
+#____________________________________________________________
+#
+#      |cos(d) -sin(d) 0|
+#  P = |sin(d)  cos(d) 0|
+#      |0       0      1|
 
-  rotlat    = np.arcsin(
-                np.sin(lat)*np.sin(plat) +
-                np.cos(lat)*np.cos(plat)*np.cos(lon-plon)
-                )
-  rotlon    = np.arctan2(
-                np.cos(lat)*np.sin(lon-plon),
-                (np.cos(lat)*np.sin(plat)*np.cos(lon-plon)-np.sin(lat)*np.cos(plat))
-                )
+#e_i= Sum_n(P_in*e'_n) & e'_i= Sum_n(P_ni* e_n)
+#A_i= Sum_n(P_in*A'_n) & A'_i= Sum_n(P_ni* A_n)
+#Where e the unit vectors and A_i the physical components of vector A
+#specifically:
+# u= u_g* cos_d -v_g*sin_d
+# v= u_g* sin_d -v_g*cos_d
+# and
+# u_g= u* cos_d +v*sin_d
+# v_g=-u* sin_d +v*cos_d
+# Where the subscript _g defines the geographic grid.
+def do_the_rotation(lon, lat, x, y):
+  # takes in the array of number of hexagons
+  #, where x and y contain [num_hex, ntim, nlev] values
+  len_x  = x.shape[0]
+  x_tnd  = np.empty(x.shape)
+  y_tnd  = np.empty(y.shape)
+  x_tnd.fill(0)
+  y_tnd.fill(0)
+  plon, plat = get_polar(lon[0],lat[0])
+  for i in range(len_x):
+    x_tnd[i,:,:], y_tnd[i,:,:]= rotate_vec_to_local(
+      plon, plat,
+      lon[i], lat[i],
+      x[i,:,:], y[i,:,:]
+      )
+  return x_tnd, y_tnd
 
-  return rotlon, rotlat
+def rotate_back(lon, lat, x, y):
+  # shouldn't be neccessary. The entropy production value should remain the same
+  # independent rotation back should therefore not be neccessary and additional
+  # computing time.
 
-def rotate_vec(lon, lat, x,y):
+  plon, plat = get_polar(lon, lat)
+  x_tnd, y_tnd  = rotate_vec_to_global(
+      plon, plat,
+      lon, lat,
+      x, y
+      )
+  return x_tnd, y_tnd
+
+def get_polar(lon, lat):
+  plon   = 0.0
+  if 0 < lon <= np.pi:
+    plon = lon - np.pi
+  elif (-np.pi < lon < 0):
+    plon = lon + np.pi
+  #else:
+    # no turning needed here
+
+  plat   = np.pi/2
+  if 0 < lat <= np.pi/2:
+    plat = np.pi/2 - lat
+  elif -np.pi/2 <= lat < 0:
+    plat = -np.pi/2-lat
+  #else:
+    # no turning needed here
+
+  return plon, plat
+
+
+def rotate_vec_to_local(plon, plat, lon, lat, x,y):
   ''' rotates vectors using rotat_latlon_vec'''
-  len_x = x.shape[0] 
-  plon = lon[0]
-  plat = lat[0]
   x_tnd= np.empty(x.shape)
   y_tnd= np.empty(y.shape)
   x_tnd.fill(0)
   y_tnd.fill(0)
-  x_tnd[0,:,:]  = x[0,:,:] 
-  y_tnd[0,:,:]  = y[0,:,:] 
-  # do only for all except center value...
-  for i in range(1,len_x):
-    sin_d, cos_d = rotate_latlon_vec(lon[i],lat[i],plon,plat)
-    x_tnd[i,:,:] = x[i,:,:]*cos_d -y[i,:,:]*sin_d
-    y_tnd[i,:,:] = x[i,:,:]*sin_d +y[i,:,:]*cos_d
+
+  sin_d, cos_d = rotate_latlon_vec(lon,lat,plon,plat)
+
+  x_tnd = x*cos_d -y*sin_d
+  y_tnd = x*sin_d +y*cos_d
 
   return x_tnd, y_tnd
-  
+
+def rotate_vec_to_global(plon, plat, lon, lat, x,y):
+  ''' rotates vectors using rotate_latlon_vec'''
+  x_tnd= np.empty(x.shape)
+  y_tnd= np.empty(y.shape)
+  x_tnd.fill(0)
+  y_tnd.fill(0)
+
+  sin_d, cos_d = rotate_latlon_vec(lon,lat,plon,plat)
+
+  x_tnd = x*cos_d +y*sin_d
+  y_tnd =-x*sin_d +y*cos_d
+
+  return x_tnd, y_tnd
+
 def rotate_latlon_vec(lon, lat, plon, plat):
   '''gives entries of rotation matrix for vector rotation
-     taken from ICON code '''
-  z_lamdiff = plon - lon
+     see Documentation of COSMOS pp. 27'''
+
+  z_lamdiff = lon - plon
   z_a       = np.cos(plat)*np.sin(z_lamdiff)
   z_b       = np.cos(lat)*np.sin(plat)-np.sin(lat)*np.cos(plat)*np.cos(z_lamdiff)
   z_sq      = np.sqrt(z_a*z_a + z_b*z_b)
   sin_d     = z_a/z_sq
   cos_d     = z_b/z_sq
-  
+
   return sin_d, cos_d
 

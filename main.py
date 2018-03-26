@@ -1,168 +1,207 @@
+'''The main of the Coarse-Graining Post Processing Program
+    The actual computation of thetrubulent diffusion is done here.'''
 import os
+import sys
 import glob
+import numpy as np
+import custom_io as cio
+import data_op as dop
+import math_op as mo
 
-# the main file. 
+# the main file
 def user():
-  kwargs = {}
-  print 'enter the experiment you wish to postprocess:'
-  kwargs['experiment'] = raw_input()
-  print 'how many rings of hexagons shall be averaged over?'
-  while True:
-    helper = int(input())
-    if type(helper) == int:
-      kwargs['num_rings'] = helper
-      break
-  print 'how many files shall be processed?'
-  while True:
-    helper = int(input())
-    if type(helper) == int:
-      kwargs['num_files'] = helper
-      break
-  return kwargs 
+    '''User interfacce routine.
+        returns experiment name and area to be averaged over.'''
+    kwargs = {}
+    print 'enter the experiment you wish to postprocess:'
+    kwargs['experiment'] = raw_input()
+    print 'how many rings of hexagons shall be averaged over?'
+    while True:
+        helper = int(input())
+        if isinstance(helper, int):
+            kwargs['num_rings'] = helper
+            break
+    print 'how many files shall be processed?'
+    while True:
+        helper = int(input())
+        if isinstance(helper, int):
+            kwargs['num_files'] = helper
+            break
+    return kwargs
 
 def read_grid(kwargs):
-  switch = True
-  for n in kwargs['grid']:
-    if 'refined_{}'.format(kwargs['num_rings']) in n:
-      switch = False
-      kwargs['grid'] = [n]
-  if switch:
-    for n in kwargs['grid']:
-      if not 'refined' in n:
-        kwargs['grid'] = [n]
-  if switch:
-    quarks  = {
-        'num_rings': kwargs['num_rings'],
-        'path' : kwargs['']
-        }
-    return cio.read_netcdfs(kwargs['grid'], 'time', quarks, func= lambda
-        ds, quarks: cio.read_grid(ds, **quarks))
-  else:
-    return cio.read_netcdfs(kwargs['grid'], 'time')
+    '''Opens the grid file.
+        Automatically checks the grid files for a refined one,
+        if none present creates one.'''
+    switch = True
+    func = None
+    for grid in kwargs['grid']:
+        if 'refined_{}'.format(kwargs['num_rings']) in grid:
+            switch = False
+            kwargs['grid'] = [grid]
+    if switch:
+        for grid in kwargs['grid']:
+            if not 'refined' in grid:
+                kwargs['grid'] = [grid]
+        quarks = {
+            'num_rings': kwargs['num_rings'],
+            'path' : kwargs['filep']
+            }
+        func = lambda ds, quarks: cio.read_grid(ds, **quarks)
+    return cio.read_netcdfs(kwargs['grid'], 'time', quarks, func)
+
 
 def read_data(kwargs, i):
-  quarks['variables']  = kwargs['variables'] 
-  return cio.read_netcdfs([kwargs['file'][i]], 'time', quarks, func= lambda ds, quarks:cio.
-    extract_variables(ds, **quarks)) 
+    '''Reads the data files.'''
+    quarks = {}
+    quarks['variables'] = kwargs['variables']
+    func = lambda ds, quarks: cio.extract_variables(ds, **quarks)
+    return cio.read_netcdfs([kwargs['files'][i]], 'time', quarks, func)
 
 def do_the_average(data, grid_nfo, kwargs):
-  '''computes the u and v hat values'''
-  # fairly simple
-  var={
-      vars      :['U','V'],
-      vec       :['U','V']
-      }
-  # compute \bar{U} and \bar{V}
-  data = area_avg('bar', grid_nfo, data, var, True)
-  # compute \hat{U} and \hat{V}
-  data = area_avg('hat', grid_nfo, data, var, True)
+    '''computes the u and v hat values'''
+    # fairly simple
+    var = {
+        'vars'      :['U', 'V'],
+        'vector'       :['U', 'V']
+        }
+    # compute \bar{U} and \bar{V}
 
-  return data
+
+    print('  ------------')
+    print('  computing bar averages')
+    data = mo.area_avg('bar', grid_nfo, data, var, True)
+    # compute \hat{U} and \hat{V}
+    print('  ------------')
+    print('  computing hat averages')
+    data = mo.area_avg('hat', grid_nfo, data, var, True)
+
+    return data
 
 def do_the_gradients(data, grid_nfo, kwargs):
-  '''computes the gradients of u an v'''
+    '''computes the gradients of u an v'''
+    var = {
+        'vars'      :['U', 'V'],
+        'vector'      :['U', 'V']
+        }
+    data = mo.gradient(data, grid_nfo, var)
 
-  return data
+    return data
 
 def do_the_dyads(data, grid_nfo):
-  '''computes the dyadic product of uv and rho plus averaging'''
-  # check if everything is there
-  needs = ['U','U_bar','V','V_bar','RHO', 'RHO_bar', 'lat', 'lon']
-  if not all(need in data for need in needs):
-    this = [need for need in needs if need not in data]
-    sys.exit('ERROR: do_the_dyads I miss quantities to do the computing
-        {}'.format(this))
-  # define kwargs for computation
-  kwargs    = {
-      'vars'    : ['U', 'V', 'RHO']
-      'UV'      : {'vars'   : ['U', 'V'],
-                   'kind'   : 'vec'
-                   }
-      'dyad'    : {'vars'   : ['U_f', 'V_f']
-                   }
-      }
+    '''computes the dyadic product of uv and rho plus averaging'''
+    # check if everything is there
+    needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar', 'lat', 'lon']
+    if not all(need in data for need in needs):
+        this = [need for need in needs if need not in data]
+        sys.exit('ERROR: do_the_dyads I miss quantities to do the computing {}'.format(this))
+      # define kwargs for computation
+    kwargs = {
+        'vars'    : ['U', 'V', 'RHO'],
+        'UV'      : {'vars'   : ['U', 'V'],
+                     'kind'   : 'vec'
+                    },
+        'dyad'    : {'vars'   : ['U_f', 'V_f']
+                    }
+        }
 
-  # start cellwise iteration 
-  for i in range(grid['ncells']):
-    # get area members
-    values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
-    # add lat lon coordinates to values
-    values.update(dop.get_members(grid_nfo, data, i, ['lat', 'lon']))
-    # get individual areas
-    values.update(dop.get_members(grid_nfo, grid_nfnfoo, i, ['cell_area']) )
-    # get coarse values
-    for var in kwargs['vars'][:2]:
-      values[var+'_bar']    = data[var+'_bar'][:,:,i]
-    values = mo.compute_flucts(values, grid_nfo, grid_nfo['num_area_hex'][i], **kwargs['UV'])
-    values = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
-  return data
+      #start cellwise iteration
+    for i in range(grid['ncells']):
+        print('cell {} of {}').format(i, grid['ncells'])
+        # get area members
+        values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
+        # add lat lon coordinates to values
+        values.update(dop.get_members(grid_nfo, data, i, ['lat', 'lon']))
+        # get individual areas
+        values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
+        # get coarse values
+        for var in kwargs['vars'][:2]:
+            values[var+'_bar'] = data[var+'_bar'][:, :, i]
+        values = mo.compute_flucts(values, grid_nfo, grid_nfo['num_area_hex'][i], **kwargs['UV'])
+        values = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
+    return data
 
 def perform(data, grid_nfo, kwargs):
-  # compute u and v hat and bar
-  data = do_the_average(data, grid_nfo, kwargs)
-  # compute gradient
-  data = do_the_gradients(data, grid_nfo, kwargs)
-  # compute and average the dyads plus comute their primes
-  data = do_the_dyads(data, grid_nfo, kwargs)
-  return data 
+    '''performs the compuations neccessary'''
+    # compute u and v hat and bar
+    print('--------------')
+    print('averaging variable fields')
+    data = do_the_average(data, grid_nfo, kwargs)
+    # '_bar' and '_hat' contain averages
+    # compute gradient
+    print('--------------')
+    print('computing the gradients')
+    data = do_the_gradients(data, grid_nfo, kwargs)
+    # 'gradient' [necells, 0:1, 0:1, ntim, nlev]
+    # 0:1 : d/dx d/dy; 0:1 : u, v
+    # compute and average the dyads plus comute their primes
+    print('--------------')
+    print('computing the dyads')
+    data = do_the_dyads(data, grid_nfo)
+    # 'dyad' [0:1,0:1, ntim, nlev, ncells]
+    print('--------------')
+    print('computing the turbulent friction')
+    data['turb_fric'] = np.empty[grid_nfo['ncells']]
+    for icell in range(grid_nfo['ncells']):
+        for i in range(2):
+            for j in range(2):
+                data['turb_fric'][icell] = (
+                    data['dyad'][i, j, :, :, icell] *
+                    data['gradient'][icell, i, j, :, :])
+    return data
+
+if __name__ == '__main__':
+    kwargs = user()
+    kwargs['filep'] = u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
+    kwargs['files'] = [
+        n for n in
+        glob.glob(kwargs['filep']+kwargs['experiment']+'_*.nc') if
+        os.path.isfile(n)]
+    kwargs['grid'] = [
+        n for n in
+        glob.glob(kwargs['filep']+'*grid*.nc') if
+        os.path.isfile(n)]
+    kwargs['variables'] = ['U', 'V', 'RHO']
+    if not kwargs['files'] or not kwargs['grid']:
+        sys.exit('Error:missing gridfiles or datafiles')
+    grid = read_grid(kwargs)
+    grid_nfo = {
+        'area_num_hex'        : grid['area_num_hex'].values,
+        'area_neighbor_idx'   : grid['area_neighbor_idx'].values,
+        'coarse_area'         : grid['coarse_area'].values,
+        'cell_area'           : grid['cell_area'].values,
+        'i_cell'              : 0
+        }
+
+    if kwargs['num_files'] > len(kwargs['files']):
+        fin = len(kwargs['files'])
+    else:
+        fin = kwargs['num_files']
+
+    for i in range(fin):
+        print ('file {} of {}').format(i, fin)
+        data = read_data(kwargs, i)
+        grid_nfo.update({
+            'ntim'                : data.dims['time'],
+            'nlev'                : data.dims['lev'],
+            'ncells'              : data.dims['ncells'],
+            'lat'                 : data['clat'].values,
+            'lon'                 : data['clon'].values
+            })
+        data_run = {}
+        for var in kwargs['variables']:
+            data_run[var] = data[var].values
+
+        # critcally wrong still:
+        data_run = perform(data_run, grid_nfo, kwargs)
+        # ^^^^^ correct that
+        cio.write_netcdf(kwargs['files'][i]+'refined_{}'.format(kwargs['num_rings']),
+                         data)
 
 
-
-
-
-
-
-if __name__== '__main__':
-  kwargs= user()
-  kwargs['filep'] =  u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
-  kwargs['files'] = [
-      n for n in
-      glob.glob(kwargs['filep]'+kwargs['experiment']+'_*.nc') if
-      os.path.isfile(n)]
-  kwargs['grid'] = [
-      n for n in
-      glob.glob(kwargs['filep']+'*grid*.nc') if
-      os.path.isfile(n)]
-  kwargs['variables'] = ['U', 'V', 'RHO']
-  if is_empty(kwargs['files']) or is_empty(kwargs['grid']:
-     sys.exit('Error:missing gridfiles or datafiles')
-  
-  grid = read_grid(kwargs['grid'])
-  grid_nfo={
-      'area_num_hex'        : grid['area_num_hex'].values,
-      'area_neighbor_idx'   : grid['area_neighbor_idx'].values,
-      'coarse_area'         : grid['coarse_area'].values,
-      'cell_area'           : grid['cell_area'].values,
-      'i_cell'              : 0 
-      }
-  
-  if kwargs['num_files'] > len(kwargs['files']):
-    fin = len(kwargs['files'])
-  else:
-    fin = len(kwargs['num_files'])
-
-  for i in range(fin):
-    print ('file {} of {}').format(i, fin)
-    data = read_data(kwargs, i)
-    grid_nfo.update({
-      'ntim'                : data.dims['time'],
-      'nlev'                : data.dims['lev'],
-      'ncells'              : data.dims['ncells'],
-      'lat'                 : data['clat'].values,
-      'lon'                 : data['clon'].values
-      })
-    data_run = {}
-    for var in kwargs['variables']:
-      data_run[var] = data[var].values
-
-    data = perform(data_run, grid_nfo, kwargs)
-    write_netcdf(kwargs['files'][i]+'refined_{}'.format(kwargs['num_rings']),
-      data)
-    
-    
 # make rho and v Grid, weigh them
 
-# make T Grid, weigh them 
+# make T Grid, weigh them
 
 # make \hat v Grid
 
@@ -174,10 +213,9 @@ if __name__== '__main__':
 
 # delete rho Grid
 
-# delete v'' Grid 
+# delete v'' Grid
 
 # make partial \hat v Grid
 
 # delete \hat v Grid
-
 
