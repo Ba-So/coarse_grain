@@ -133,7 +133,7 @@ def get_members_idx(data, idxcs, variables):
 
     return out
 
-def get_gradient_nfo(grid_nfo):
+def get_gradient_nfo(grid):
     '''computes the coordinates of neighbors for gradient computations
     gradient_nfo:
         coords: contains the neighbor point coordinates
