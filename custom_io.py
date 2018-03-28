@@ -1,9 +1,4 @@
-import numpy as np
-import pandas as pd
 import xarray as xr
-import sys
-import os
-from glob import glob
 import data_op as dop
 import math_op as mop
 
@@ -29,14 +24,13 @@ def read_netcdfs(files, dim, kwargs=None, func=None):
       return ds
 
 #  paths   = sorted(glob(files))
-  paths   = files  
-  datasets= [process_one_path(p) for p in paths]
+  paths = files
+  datasets = [process_one_path(p) for p in paths]
+  combined = datasets[0]
   if len(datasets) > 1:
-    combined= xr.concat(datasets, dim)
-    return combined
-  else:
-    return datasets[0]
-      
+    combined = xr.concat(datasets, dim)
+  return combined
+
 def extract_variables(ds, variables):
 
   def take_one_variable(var, ds):
@@ -45,14 +39,16 @@ def extract_variables(ds, variables):
   #variables = ['U', 'V']
   data = {}
   for var in variables:
-      data[var] =  take_one_variable(var,ds)
+      data[var] = take_one_variable(var, ds)
 
-  ds_o  = xr.Dataset(data)
+  ds_o = xr.Dataset(data)
 
   # for convienience. 
-  ds_o  = ds_o.rename({'cell2' : 'ncells',
-                       'vlon' : 'clon', 'vlat' : 'clat'
-                       })
+  ds_o = ds_o.rename({
+          'cell2' : 'ncells',
+          'vlon' : 'clon',
+          'vlat' : 'clat'
+          })
 
   return ds_o
 
