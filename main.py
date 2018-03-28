@@ -78,13 +78,13 @@ def do_the_average(data, grid_nfo, kwargs):
 
     return data
 
-def do_the_gradients(data, grid_nfo, kwargs):
+def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
     '''computes the gradients of u an v'''
     var = {
         'vars'      :['U', 'V'],
         'vector'      :['U', 'V']
         }
-    data = mo.gradient(data, grid_nfo, var)
+    data = mo.gradient(data, grid_nfo, gradient_nfo, var)
 
     return data
 
@@ -121,7 +121,7 @@ def do_the_dyads(data, grid_nfo):
         values = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
     return data
 
-def perform(data, grid_nfo, kwargs):
+def perform(data, grid_nfo, gradient_nfo, kwargs):
     '''performs the compuations neccessary'''
     # compute u and v hat and bar
     print('--------------')
@@ -131,7 +131,7 @@ def perform(data, grid_nfo, kwargs):
     # compute gradient
     print('--------------')
     print('computing the gradients')
-    data = do_the_gradients(data, grid_nfo, kwargs)
+    data = do_the_gradients(data, grid_nfo, gradient_nfo, kwargs)
     # 'gradient' [necells, 0:1, 0:1, ntim, nlev]
     # 0:1 : d/dx d/dy; 0:1 : u, v
     # compute and average the dyads plus comute their primes
@@ -172,6 +172,11 @@ if __name__ == '__main__':
         'cell_area'           : grid['cell_area'].values,
         'i_cell'              : 0
         }
+    gradient_nfo = {
+        'coords' : grid['coords'].values,
+        'member_idx' : grid['member_idx'].values,
+        'member_rad' : grid['member_rad'].values
+    }
 
     if kwargs['num_files'] > len(kwargs['files']):
         fin = len(kwargs['files'])
@@ -193,7 +198,7 @@ if __name__ == '__main__':
             data_run[var] = data[var].values
 
         # critcally wrong still:
-        data_run = perform(data_run, grid_nfo, kwargs)
+        data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
         # ^^^^^ correct that
         cio.write_netcdf(kwargs['files'][i]+'refined_{}'.format(kwargs['num_rings']),
                          data)
