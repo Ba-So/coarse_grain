@@ -9,7 +9,7 @@
 #       -> read on parallelization?
 import xarray as xr
 import numpy as np
-import math_op as mop
+import math_op as mo
 
 def account_for_pentagons(grid):
   '''accounts for superflous neighbor indices, due to pentagons'''
@@ -119,17 +119,17 @@ def get_members(grid_nfo, data, i, variables):
   return out
 
 def get_members_idx(data, idxcs, variables):
-  '''gets members of a hex_area'''
-  # functional and used.
-  out       = {}
+    '''gets members of a hex_area'''
+    # functional and used.
+    out       = {}
 
-  for var in variables:
-    if data[var].ndim == 3:
-      out[var] = np.array([data[var][:,:,j] for j in idxcs])
-    if data[var].ndim == 2:
-      out[var] = np.array([data[var][:,j] for j in idxcs])
-    if data[var].ndim == 1:
-      out[var] = np.array([data[var][j] for j in idxcs])
+    for var in variables:
+        if data[var].ndim == 3:
+            out[var] = np.array([data[var][:, :, j] for j in idxcs])
+        if data[var].ndim == 2:
+            out[var] = np.array([data[var][:, j] for j in idxcs])
+        if data[var].ndim == 1:
+            out[var] = np.array([data[var][j] for j in idxcs])
 
   return out
 
@@ -148,28 +148,61 @@ def get_gradient_nfo(grid_nfo):
     coords = np.emtpy([ncells, 4, 2])
     coords.fill(0)
     # compute the coordinates of the four corners for gradient
+    print(' --------------')
+    print(' computing corner coordinates')
     for i in range(ncells):
         lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
         area    = grid_nfo['coarse_area'][i]
         coords[i, :, :] = mo.gradient_coordinates(lonlat, area)
+
+    # compute radii for finding members
+    print(' --------------')
+    print(' computing bounding radii')
+    check_rad = np.empty([ncells]).fill(0)
+    for i in range(ncells):
+        check_rad[i] = 2 * mo.radius(grid_nfo['cell_area'][i])
+
     # get bounding box to find members
-    bounds = np.empty([ncells, 2, 2, 2])
+    print(' --------------')
+    print(' computing bounding boxes')
+    bounds = np.empty([ncells, 4, 2, 2, 2]).fill(0)
     for i in range(ncells):
         for j in range(4):
+            lonlat = coords[i, j, :]
+            bounds[i, j, :, :, :] = mo.max_min_bounds(lonlat, check_rad[i])
 
-
-
-
-    for i in range(ncells):
-        for j in range(4):
-            member_idx = []
-            member_rad = []
-
+    print(' --------------')
+    print(' finding members for gradient approximation')
+    member_idx = [[[] for j in range(4)] for i in range(ncells)]
+    member_rad = [[[] for j in range(4)] for i in range(ncells)]
+    for j in range(4):
+        for i in range(ncells):
+            candidates = []
+            idx = []
+            rad = []
+            for k in range(ncells):
+                if check_if_in_bounds(
+                    bounds[i, j, :, :, :],
+                    grid_nfo['lon'][k],
+                    grid_nfo['lat'][k]):
+                        candidates.append(i_cell)
+            for k in candidates:
+                r = arc_len(
+                        coords[i, j, :],
+                        [grid_nfo['lon'][k], grid_nfo['lat'][k]])
+                if r <= check_rad[i]:
+                    idx.append(k)
+                    rad.append(r)
+            idx = np.array(idx)
+            rad = np.array(rad)
+            member_idx[i][j].append(idx)
+            member_rad[i][j].append(rad)
 
     gradient_nfo = {
-        'coords' : coords
-        'member_idx' : []
-        'member_rad' : []
+        'coords' : coords,
+        'member_idx' : member_idx,
+        'member_rad' : member_rad
         }
 
+    return gradient_nfo
 
