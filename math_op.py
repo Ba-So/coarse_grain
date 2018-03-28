@@ -335,7 +335,8 @@ def max_min_bounds(lonlat, r):
     lock = False
     lat_min = lonlat[1] - r
     lat_max = lonlat[1] + r
-    bounds = np.empty(2, 2, 2).fill(-4)
+    bounds = np.empty([2, 2, 2])
+    bounds.fill(-4)
     if lat_max > np.pi/2:
         # northpole in query circle:
         bounds[0, :, :] = [[lat_min, -np.pi],[np.pi/2, np.pi]]
