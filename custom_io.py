@@ -43,7 +43,7 @@ def extract_variables(ds, variables):
 
   ds_o = xr.Dataset(data)
 
-  # for convienience. 
+  # for convienience.
   ds_o = ds_o.rename({
           'cell2' : 'ncells',
           'vlon' : 'clon',
@@ -58,7 +58,7 @@ def read_grid(ds, path, num_rings):
   #     reassign
   #     rename
   #     sort pentagon stuff
-  
+
   grid  = xr.Dataset({'cell_idx'            : ds['vertex_index'],
                       'cell_neighbor_idx'   : ds['vertices_of_vertex'],
                       'cell_area'           : ds['dual_area_p']
@@ -81,6 +81,9 @@ def read_grid(ds, path, num_rings):
   print '--------------'
   print 'computing total hex area'
   grid = mop.coarse_area(grid)
+  print '--------------'
+  print 'computing gradient_nfo'
+  grid = dop.get_gradient_nfo(grid)
   print '--------------'
   print 'writing file as {}_refined_{}.nc'.format(path,num_rings)
   write_netcdf(path+'_refined_{}.nc'.format(num_rings), grid)
