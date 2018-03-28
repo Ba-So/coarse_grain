@@ -266,7 +266,7 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
                 i_cell)
     return values
 
-def gradient(data, grid_nfo, gradien_nfo, var):
+def gradient(data, grid_nfo, gradient_nfo, var):
 
     data['gradient']  = np.empty([
         grid_nfo['ncells'], 2, 2,
