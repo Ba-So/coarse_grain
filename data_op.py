@@ -146,10 +146,10 @@ def get_gradient_nfo(grid):
     ncells = grid.dims['ncells']
     coarse_area = grid['coarse_area'].values
     cell_area = grid['cell_area'].values
-    lon = grid['clon'].values
-    lat = grid['clat'].values
+    lon = grid['lon'].values
+    lat = grid['lat'].values
 
-    coords = np.emtpy([ncells, 4, 2])
+    coords = np.empty([ncells, 4, 2])
     coords.fill(0)
     # compute the coordinates of the four corners for gradient
     print(' --------------')
