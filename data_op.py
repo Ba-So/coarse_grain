@@ -133,7 +133,7 @@ def get_members_idx(data, idxcs, variables):
 
   return out
 
-def get_gradient_coordinates(grid_nfo):
+def get_gradient_nfo(grid_nfo):
     '''computes the coordinates of neighbors for gradient computations
     gradient_nfo:
         coords: contains the neighbor point coordinates
@@ -151,10 +151,20 @@ def get_gradient_coordinates(grid_nfo):
     for i in range(ncells):
         lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
         area    = grid_nfo['coarse_area'][i]
-        gradient_nfo['coords'] = mo.gradient_coordinates(lonlat, area)
+        coords[i, :, :] = mo.gradient_coordinates(lonlat, area)
+    # get bounding box to find members
+    bounds = np.empty([ncells, 2, 2, 2])
+    for i in range(ncells):
+        for j in range(4):
+
+
+
 
     for i in range(ncells):
         for j in range(4):
+            member_idx = []
+            member_rad = []
+
 
     gradient_nfo = {
         'coords' : coords
