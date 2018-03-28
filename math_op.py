@@ -339,17 +339,18 @@ def max_min_bounds(lonlat, area):
     lock = False
     lat_min = lonlat[1] - r
     lat_max = lonlat[1] + r
+    bounds = np.empty(2, 2, 2).fill(-4)
     if lat_max > np.pi/2:
         # northpole in query circle:
-        bounds = np.array([[lat_min, -np.pi],[np.pi/2, np.pi]])
+        bounds[0, :, :] = [[lat_min, -np.pi],[np.pi/2, np.pi]]
         lock = True
     elif lat_min < -np.pi/2:
         # southpole in query circle:
-        bounds = np.array([[-np.pi/2, -np.pi],[lat_max, np.pi]])
+        bounds[0, :, :] = [[-np.pi/2, -np.pi],[lat_max, np.pi]]
         lock = True
     else:
         # no pole in query circle
-        bounds = np.array([[lat_min, -np.pi], [lat_max, np.pi]])
+        bounds[0, :, :] = [[lat_min, -np.pi], [lat_max, np.pi]]
   # computing minimum and maximum longditudes:
     if not lock:
         lat_T = np.arcsin(np.sin(lonlat[1])/np.cos(r))
@@ -359,30 +360,28 @@ def max_min_bounds(lonlat, area):
         lon_min = lonlat[0] - d_lon
         lon_max = lonlat[0] + d_lon
         if lon_min < -np.pi:
-            bounds = np.array([bounds, bounds])
+            bounds[1, :, :] = bounds[0, :, :]
             bounds[0, 0, 1] = lon_min + 2 * np.pi
             bounds[0, 1, 1] = np.pi
             #and
             bounds[1, 0, 1] = - np.pi
             bounds[1, 1, 1] = lon_max
         elif lon_max > np.pi:
-            bounds = np.array([bounds, bounds])
+            bounds[1, :, :] = bounds[0, :, :]
             bounds[0, 0, 1] = lon_min
             bounds[0, 1, 1] = np.pi
             #and
             bounds[1, 0, 1] = - np.pi
             bounds[1, 1, 1] = lon_max - 2 * np.pi
         else:
-            bounds = np.array([bounds])
             bounds[0, 0, 1] = lon_min
             bounds[0, 1, 1] = lon_max
-    else:
-        bounds = np.array([bounds])
+
     return bounds
 
 def gradient_coordinates(lonlat, area):
 
-    r = radius(area)
+    r = 2 * radius(area)
     lat_min = lonlat[1] - r
     lat_max = lonlat[1] + r
     if lat_max > np.pi/2:
