@@ -2,10 +2,10 @@
 # Here we'll define the hex_areas and find neighbors
 # MISSING:
 #   * Routine to assign hex area neighbors to central hexes
-#   * Routine to cast hexes into objects. 
+#   * Routine to cast hexes into objects.
 #       -> parallelization through using as many objects as there are
 #       processors? with one global dict, giving information on which processor specific
-#       hexes are to allow messages to be sent between them. 
+#       hexes are to allow messages to be sent between them.
 #       -> read on parallelization?
 import xarray as xr
 import numpy as np
@@ -13,7 +13,7 @@ import math_op as mop
 
 def account_for_pentagons(grid):
   '''accounts for superflous neighbor indices, due to pentagons'''
-  
+
   num_edges = np.array(
             [6 for i in range(0,grid.dims['ncells'])]
             )
@@ -37,7 +37,7 @@ def account_for_pentagons(grid):
             )
   grid  = grid.assign(num_edges = num_edges)
   grid['cell_neighbor_idx'].values = cni
-  
+
   return grid
 
 def define_hex_area(grid, num_rings):
@@ -55,7 +55,7 @@ def define_hex_area(grid, num_rings):
 
   for idx in range(0, grid.dims['ncells']):
 
-    jh      = 0 
+    jh      = 0
     jh_c    = 1
     a_nei_idx[0,idx] = idx
     while jh_c < num_hex[idx]:
@@ -65,7 +65,7 @@ def define_hex_area(grid, num_rings):
         num_hex[idx] -= 1
         if jh_c >= num_hex[idx]:
           break
-        
+
       for jn in range(0, num_edg[idx_n]):
         idx_c   = c_nei_idx[jn, idx_n]
 
@@ -79,7 +79,7 @@ def define_hex_area(grid, num_rings):
           print 'define_hex_area: error jh_c to large'
 
       jh   += 1
-  
+
   #stuff it into grid grid DataSet
 
   kwargs    = {}
@@ -87,7 +87,7 @@ def define_hex_area(grid, num_rings):
             num_hex,
             dims = ['ncells']
             )
-  
+
   kwargs['area_num_hex'] = area_num_hex
 
   area_neighbor_idx = xr.DataArray(
@@ -103,10 +103,10 @@ def define_hex_area(grid, num_rings):
 
 def get_members(grid_nfo, data, i, variables):
   '''gets members of a hex_area'''
-  # functional and used. 
+  # functional and used.
   num_hex   = grid_nfo['area_num_hex'][i]
   a_nei_idx = grid_nfo['area_neighbor_idx'][:,i]
-  out       = {} 
+  out       = {}
 
   for var in variables:
     if data[var].ndim == 3:
@@ -116,7 +116,22 @@ def get_members(grid_nfo, data, i, variables):
     if data[var].ndim == 1:
       out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
 
-  return out 
+  return out
+
+def get_members_idx(data, idxcs, variables):
+  '''gets members of a hex_area'''
+  # functional and used.
+  out       = {}
+
+  for var in variables:
+    if data[var].ndim == 3:
+      out[var] = np.array([data[var][:,:,j] for j in idxcs])
+    if data[var].ndim == 2:
+      out[var] = np.array([data[var][:,j] for j in idxcs])
+    if data[var].ndim == 1:
+      out[var] = np.array([data[var][j] for j in idxcs])
+
+  return out
 
 # unfunctional as of yet?
 def compute_uv_dyads(grid, data):
@@ -125,10 +140,10 @@ def compute_uv_dyads(grid, data):
     # do some nasty magic with lambda fucntions in conjucture with area_avg
     # functions?
   return None
-          
 
 
 
 
-  
+
+
 
