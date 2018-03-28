@@ -266,7 +266,7 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
                 i_cell)
     return values
 
-def gradient(data, grid_nfo, var):
+def gradient(data, grid_nfo, gradien_nfo, var):
 
     data['gradient']  = np.empty([
         grid_nfo['ncells'], 2, 2,
@@ -283,13 +283,10 @@ def gradient(data, grid_nfo, var):
             print('progress: {} cells of {}').format(info_bnd, grid_nfo['ncells'])
             info_bnd = info_bnd + 1000
 
-        area    = grid_nfo['coarse_area'][i]
-        lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
-        coords  = gradient_coordinates(lonlat, area)
         # check for correct keys
+        neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
         area    = grid_nfo['cell_area'][i]
-        neighs  = circ_dist_avg(data, grid_nfo, coords, area, var)
-        d       = radius(area)
+        d       = 2 * radius(area)
         data['gradient'][i,0,0,:,:]   = central_diff(
             neighs['U'][0], data['U'][:, :, i], neighs['U'][1],
             d
@@ -324,9 +321,8 @@ def radius(area):
     r         = np.sqrt(area/np.pi)/ re
     return r
 
-def max_min_bounds(lonlat, area):
+def max_min_bounds(lonlat, r):
     # get radius
-    r = radius(area)
     # coords[0,:] latitude values
     # coords[1,:] longditude values
     # u is merdional wind, along longditudes
@@ -417,7 +413,7 @@ def check_if_in_bounds(bounds, lon, lat):
     return check
 
 
-def circ_dist_avg(data, grid_nfo, coords, area, var):
+def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
     values = {
         name: np.empty(
             [4,grid_nfo['ntim'],grid_nfo['nlev']])
@@ -425,27 +421,11 @@ def circ_dist_avg(data, grid_nfo, coords, area, var):
     for name in var['vars']:
         values[name].fill(0)
     #how large is check radius?
-    candidates = [[],[],[],[]]
-    check_r    =4 *radius(area)
     for j in range(4):
-        member_idx = []
-        member_rad = []
-        members    = []
-        bounds = max_min_bounds(coords[j,:],3*area)
-        # find candidates for members of circle at target coords
-        for i_cell in range(grid_nfo['ncells']):
-            if check_if_in_bounds(
-                bounds,
-                grid_nfo['lon'][i_cell],
-                grid_nfo['lat'][i_cell]):
-                    candidates.append(i_cell)
-        # verify candidates as members
-        for k in candidates:
-            r =  arc_len(coords[j,:], [grid_nfo['lon'][k], grid_nfo['lat'][k]])
-        if r <= check_r:
-            member_idx.append(k)
-            member_rad.append(r)
-    # now compute distance weighted average of area weighted members:
+        coords = gradient_nfo['coords'][i_cell, j, :]
+        member_idx = gradient_nfo['member_idx'][i_cell][j]
+        member_rad = gradient_nfo['member_rad'][i_cell][j]
+    # compute distance weighted average of area weighted members:
         members    = dop.get_members_idx(data, member_idx, var['vars'])
         # if you suffer from boredom: This setup gives a lot of flexebility.
         #     may be transferred to other parts of this program.
@@ -459,10 +439,8 @@ def circ_dist_avg(data, grid_nfo, coords, area, var):
                 len(member_idx),
                 grid_nfo['ntim'],
                 grid_nfo['nlev']])
-            print('{}').format(np.shape(rot_vec))
-            print('{}').format(np.shape(members[vec[0]]))
             rot_vec.fill(0)
-            plon, plat = get_polar(coords[j, 0], coords[j, 1])
+            plon, plat = get_polar(coords[0], coords[1])
             rot_vec[:,:,:,:]  =  rotate_members_to_local(
                 lons, lats, plon, plat,
                 members[vec[0]][:,:,:], members[vec[1]][:,:,:])
@@ -471,7 +449,7 @@ def circ_dist_avg(data, grid_nfo, coords, area, var):
         helper         = dist_avg(members, member_idx, member_rad, grid_nfo, var['vars'])
         if 'vector' in var.iterkeys():
             rot_vec =rotate_single_to_global(
-                coords[j, 0], coords[j, 1],
+                coords[0], coords[1],
                 helper[vec[0]][:,:], helper[vec[1]][:,:])
             helper[vec[0]]   = rot_vec[0]
             helper[vec[1]]   = rot_vec[1]
