@@ -133,17 +133,33 @@ def get_members_idx(data, idxcs, variables):
 
   return out
 
-# unfunctional as of yet?
-def compute_uv_dyads(grid, data):
-  data =    mop.area_avg_vec('hat', grid, data, ['U','V'])
-  data =    mop.area_avg_vec('bar', grid, data, ['U','V'])
-    # do some nasty magic with lambda fucntions in conjucture with area_avg
-    # functions?
-  return None
+def get_gradient_coordinates(grid_nfo):
+    '''computes the coordinates of neighbors for gradient computations
+    gradient_nfo:
+        coords: contains the neighbor point coordinates
+            numpy([ncells, corners, [lon, lat])
+        members_idxcs: contains the indices of members
+            [ncells, numpy(idxcs)]
+        members_rad: contains the relative distance of members to center
+            [ncells, numpy(radii)]
+    '''
 
+    ncells = grid['ncells']
+    coords = np.emtpy([ncells, 4, 2])
+    coords.fill(0)
+    # compute the coordinates of the four corners for gradient
+    for i in range(ncells):
+        lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
+        area    = grid_nfo['coarse_area'][i]
+        gradient_nfo['coords'] = mo.gradient_coordinates(lonlat, area)
 
+    for i in range(ncells):
+        for j in range(4):
 
-
-
+    gradient_nfo = {
+        'coords' : coords
+        'member_idx' : []
+        'member_rad' : []
+        }
 
 
