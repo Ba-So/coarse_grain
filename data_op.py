@@ -143,16 +143,20 @@ def get_gradient_nfo(grid_nfo):
         members_rad: contains the relative distance of members to center
             [ncells, numpy(radii)]
     '''
+    ncells = grid.dims['ncells']
+    coarse_area = grid['coarse_area'].values
+    cell_area = grid['cell_area'].values
+    lon = grid['clon'].values
+    lat = grid['clat'].values
 
-    ncells = grid['ncells']
     coords = np.emtpy([ncells, 4, 2])
     coords.fill(0)
     # compute the coordinates of the four corners for gradient
     print(' --------------')
     print(' computing corner coordinates')
     for i in range(ncells):
-        lonlat  = [grid_nfo['lon'][i], grid_nfo['lat'][i]]
-        area    = grid_nfo['coarse_area'][i]
+        lonlat  = [lon[i], lat[i]]
+        area    = coarse_area[i]
         coords[i, :, :] = mo.gradient_coordinates(lonlat, area)
 
     # compute radii for finding members
@@ -160,7 +164,7 @@ def get_gradient_nfo(grid_nfo):
     print(' computing bounding radii')
     check_rad = np.empty([ncells]).fill(0)
     for i in range(ncells):
-        check_rad[i] = 2 * mo.radius(grid_nfo['cell_area'][i])
+        check_rad[i] = 2 * mo.radius(cell_area[i])
 
     # get bounding box to find members
     print(' --------------')
@@ -183,13 +187,13 @@ def get_gradient_nfo(grid_nfo):
             for k in range(ncells):
                 if check_if_in_bounds(
                     bounds[i, j, :, :, :],
-                    grid_nfo['lon'][k],
-                    grid_nfo['lat'][k]):
+                    lon[k],
+                    lat[k]):
                         candidates.append(i_cell)
             for k in candidates:
                 r = arc_len(
                         coords[i, j, :],
-                        [grid_nfo['lon'][k], grid_nfo['lat'][k]])
+                        [lon[k], lat[k]])
                 if r <= check_rad[i]:
                     idx.append(k)
                     rad.append(r)
@@ -198,11 +202,25 @@ def get_gradient_nfo(grid_nfo):
             member_idx[i][j].append(idx)
             member_rad[i][j].append(rad)
 
-    gradient_nfo = {
+
+    #incorporate
+    coords = xr.DataArray(
+        coords,
+        dims = ['ncells'])
+    member_idx = xr.DataArray(
+        member_idx,
+        dims= ['ncells'])
+    member_rad = xr.DataArray(
+        member_rad,
+        dims= ['ncells'])
+
+    kwargs = {
         'coords' : coords,
         'member_idx' : member_idx,
         'member_rad' : member_rad
         }
 
-    return gradient_nfo
+    grid  = grid.assign(**kwargs)
+
+    return grid
 
