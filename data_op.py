@@ -131,7 +131,7 @@ def get_members_idx(data, idxcs, variables):
         if data[var].ndim == 1:
             out[var] = np.array([data[var][j] for j in idxcs])
 
-  return out
+    return out
 
 def get_gradient_nfo(grid_nfo):
     '''computes the coordinates of neighbors for gradient computations
