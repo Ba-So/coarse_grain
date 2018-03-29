@@ -9,6 +9,7 @@
 #       -> read on parallelization?
 import xarray as xr
 import numpy as np
+from itertools import compress
 import math_op as mo
 
 def account_for_pentagons(grid):
@@ -149,6 +150,8 @@ def get_gradient_nfo(grid):
     lon = grid['lon'].values
     lat = grid['lat'].values
 
+    max_members = 100
+
     coords = np.empty([ncells, 4, 2])
     coords.fill(0)
     # compute the coordinates of the four corners for gradient
@@ -162,14 +165,16 @@ def get_gradient_nfo(grid):
     # compute radii for finding members
     print(' --------------')
     print(' computing bounding radii')
-    check_rad = np.empty([ncells]).fill(0)
+    check_rad = np.empty([ncells], dtype = int)
+    check_rad.fill(0)
     for i in range(ncells):
         check_rad[i] = 2 * mo.radius(cell_area[i])
 
     # get bounding box to find members
     print(' --------------')
     print(' computing bounding boxes')
-    bounds = np.empty([ncells, 4, 2, 2, 2]).fill(0)
+    bounds = np.empty([ncells, 4, 2, 2, 2])
+    bounds.fill(0)
     for i in range(ncells):
         for j in range(4):
             lonlat = coords[i, j, :]
@@ -177,42 +182,70 @@ def get_gradient_nfo(grid):
 
     print(' --------------')
     print(' finding members for gradient approximation')
-    member_idx = [[[] for j in range(4)] for i in range(ncells)]
-    member_rad = [[[] for j in range(4)] for i in range(ncells)]
-    for j in range(4):
-        for i in range(ncells):
-            candidates = []
-            idx = []
-            rad = []
-            for k in range(ncells):
-                if check_if_in_bounds(
-                    bounds[i, j, :, :, :],
-                    lon[k],
-                    lat[k]):
-                        candidates.append(i_cell)
-            for k in candidates:
-                r = arc_len(
-                        coords[i, j, :],
-                        [lon[k], lat[k]])
-                if r <= check_rad[i]:
-                    idx.append(k)
-                    rad.append(r)
-            idx = np.array(idx)
-            rad = np.array(rad)
-            member_idx[i][j].append(idx)
-            member_rad[i][j].append(rad)
+    candidates = np.empty([ncells, 4, max_members], dtype = int)
+    candidates.fill(-1)
+    print('   --------------')
+    print('   checking bounds')
 
+    for i in range(ncells):
+        for j in range(4):
+            # using numpy class for highest possible optimization!
+            test_lat_1 = np.all([
+                np.greater_equal(lat, bounds[i, j, 0, 0, 0]),
+                np.less_equal(lat, bounds[i, j, 0, 1, 0])
+            ], 0)
+
+            test_lat_2 = np.all([
+                np.greater_equal(lat, bounds[i, j, 1, 0, 0]),
+                np.less_equal(lat, bounds[i, j, 1, 1, 0])
+            ], 0)
+
+            test_lat = np.any([test_lat_2, test_lat_1], 0)
+
+            test_lon_1 = np.all([
+                np.greater_equal(lon, bounds[i, j, 0, 0, 1]),
+                np.less_equal(lon, bounds[i, j, 0, 1, 1])
+            ], 0)
+
+            test_lon_2 = np.all([
+                np.greater_equal(lon, bounds[i, j, 1, 0, 1]),
+                np.less_equal(lon, bounds[i, j, 1, 1, 1])
+            ], 0)
+
+            test_lon = np.any([test_lon_2, test_lon_1], 0)
+
+            test = np.all([test_lat, test_lon], 0)
+
+            helper = list(compress(range(ncells), test))
+            candidates[i, j, :len(helper)] = helper
+
+    print('   --------------')
+    print('   checking candidates')
+    member_idx = np.empty([ncells, 4, max_members], dtype = int)
+    member_idx.fill(-1)
+    member_rad = np.empty([ncells, 4, max_members], dtype = int)
+    member_rad.fill(-1)
+    for i in range(ncells):
+        for j in range(4):
+            check = np.array([x for x in candidates[i, j] if x != -1])
+            for k, idx in enumerate(check):
+                r = mo.arc_len(
+                        coords[i, j, :],
+                        [lon[idx], lat[idx]])
+                if r <= check_rad[i]:
+                    member_idx[i, j, k] = idx
+                    member_rad[i, j, k] = r
 
     #incorporate
     coords = xr.DataArray(
         coords,
-        dims = ['ncells'])
+        dims = ['ncells','num_four','num_two'])
     member_idx = xr.DataArray(
         member_idx,
-        dims= ['ncells'])
+        dims= ['ncells','num_four','max_members'])
     member_rad = xr.DataArray(
         member_rad,
-        dims= ['ncells'])
+        dims= ['ncells','num_four','max_members'])
 
     kwargs = {
         'coords' : coords,
@@ -223,4 +256,5 @@ def get_gradient_nfo(grid):
     grid  = grid.assign(**kwargs)
 
     return grid
+
 

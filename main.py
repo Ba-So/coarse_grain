@@ -36,16 +36,19 @@ def read_grid(kwargs):
     switch = True
     func = None
     for grid in kwargs['grid']:
+        print grid
         if 'refined_{}'.format(kwargs['num_rings']) in grid:
             switch = False
             kwargs['grid'] = [grid]
+        print switch
     if switch:
         for grid in kwargs['grid']:
             if not 'refined' in grid:
                 kwargs['grid'] = [grid]
+        path = kwargs['filep'] + kwargs['grid'][0]
         quarks = {
             'num_rings': kwargs['num_rings'],
-            'path' : kwargs['filep']
+            'path' : path
             }
         func = lambda ds, quarks: cio.read_grid(ds, **quarks)
     return cio.read_netcdfs(kwargs['grid'], 'time', quarks, func)
@@ -161,6 +164,7 @@ if __name__ == '__main__':
         n for n in
         glob.glob(kwargs['filep']+'*grid*.nc') if
         os.path.isfile(n)]
+    print kwargs['grid']
     kwargs['variables'] = ['U', 'V', 'RHO']
     if not kwargs['files'] or not kwargs['grid']:
         sys.exit('Error:missing gridfiles or datafiles')
