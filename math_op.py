@@ -403,16 +403,6 @@ def gradient_coordinates(lonlat, area):
         ])
     return coords
 
-def check_if_in_bounds(bounds, lon, lat):
-    check = False
-    for i in range(np.shape(bounds)[0]):
-        check_lat = bounds[i, 0, 0] <= lat <= bounds[i, 1, 0]
-        check_lon = bounds[i, 0, 1] <= lon <= bounds[i, 1, 1]
-        if check_lat and check_lon:
-            check = True
-
-    return check
-
 
 def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
     values = {
