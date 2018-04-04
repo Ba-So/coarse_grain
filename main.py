@@ -35,6 +35,7 @@ def read_grid(kwargs):
         if none present creates one.'''
     switch = True
     func = None
+    quarks = {}
     for grid in kwargs['grid']:
         print grid
         if 'refined_{}'.format(kwargs['num_rings']) in grid:
@@ -45,7 +46,7 @@ def read_grid(kwargs):
         for grid in kwargs['grid']:
             if not 'refined' in grid:
                 kwargs['grid'] = [grid]
-        path = kwargs['filep'] + kwargs['grid'][0]
+        path = kwargs['grid'][0]
         quarks = {
             'num_rings': kwargs['num_rings'],
             'path' : path
@@ -94,7 +95,7 @@ def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
 def do_the_dyads(data, grid_nfo):
     '''computes the dyadic product of uv and rho plus averaging'''
     # check if everything is there
-    needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar', 'lat', 'lon']
+    needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar']
     if not all(need in data for need in needs):
         this = [need for need in needs if need not in data]
         sys.exit('ERROR: do_the_dyads I miss quantities to do the computing {}'.format(this))
@@ -109,18 +110,18 @@ def do_the_dyads(data, grid_nfo):
         }
 
       #start cellwise iteration
-    for i in range(grid['ncells']):
+    for i in range(grid_nfo['ncells']):
         print('cell {} of {}').format(i, grid['ncells'])
         # get area members
         values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
         # add lat lon coordinates to values
-        values.update(dop.get_members(grid_nfo, data, i, ['lat', 'lon']))
+        values.update(dop.get_members(grid_nfo, grid_nfo, i, ['lat', 'lon']))
         # get individual areas
         values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
         # get coarse values
         for var in kwargs['vars'][:2]:
             values[var+'_bar'] = data[var+'_bar'][:, :, i]
-        values = mo.compute_flucts(values, grid_nfo, grid_nfo['num_area_hex'][i], **kwargs['UV'])
+        values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
         values = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
     return data
 
