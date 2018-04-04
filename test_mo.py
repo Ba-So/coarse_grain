@@ -278,10 +278,10 @@ if __name__== '__main__':
  # data_s = test_compute_dyads(data_s, grid_nfo)
  # data_s = test_radius(3.0)
  # data_s = test_get_members_idx(data_s)
- # print data_s
+  print data_s
  # data_s = test_max_min_bounds(data, grid_nfo)
  # data_s = test_arc_len(grid_nfo)
-  data_s = test_circ_dist_avg(data_s, grid_nfo)
+ # data_s = test_circ_dist_avg(data_s, grid_nfo)
  # data_s = test_turn_spherical(grid_nfo)
  # data_s = test_gradient_coordinates(grid_nfo)
  # data_s = test_rotate_vec_to_global(grid_nfo, data_s)

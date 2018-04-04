@@ -203,7 +203,7 @@ def vector_flucts(values, grid_dic, num_hex, vars):
         values[vars[0] + '_bar'][:, :],
         values[vars[1] + '_bar'][:, :])
     result    = np.empty([
-        len(vec), num_hex, grid_dic['ntim'], grid_dic['nlev']
+        len(vars), num_hex, grid_dic['ntim'], grid_dic['nlev']
         ])
     result.fill(0)
     for i in range(len(vars) ):
@@ -232,8 +232,7 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
             l_vec,
             l_vec,
             grid_nfo['ntim'],
-            grid_nfo['nlev'],
-            grid_nfo['ncells']
+            grid_nfo['nlev']
             ])
   # the product of dyadic multiplication (probably term dyadic is misused here)
     product = np.empty([
@@ -254,23 +253,23 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
     helper['cell_area']   = values['cell_area']
     helper['RHO']         = values['RHO']
 
-    for i, item in enumerate(l_vec):
-        for j, item in enumerate(l_vec):
+    for i in range(l_vec):
+        for j in range(l_vec):
             product[i,j,:,:,:] = constituents[i] * constituents[j]
-    for i, item in enumerate(l_vec):
-        for j, item in enumerate(l_vec):
+    for i in range(l_vec):
+        for j in range(l_vec):
             helper['product']    = product[i,j,:,:,:]
-            values['dyad'][i,j,:,:,i_cell] = avg_bar(
+            values['dyad'][i,j,:,:] = avg_bar(
                 helper,
                 grid_nfo['coarse_area'],
                 i_cell)
-    return values
+    return values['dyad']
 
 def gradient(data, grid_nfo, gradient_nfo, var):
 
     data['gradient']  = np.empty([
-        grid_nfo['ncells'], 2, 2,
-        grid_nfo['ntim'], grid_nfo['nlev']
+        2, 2,
+        grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells']
         ])
     data['gradient'].fill(0)
 
@@ -287,19 +286,19 @@ def gradient(data, grid_nfo, gradient_nfo, var):
         neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
         area    = grid_nfo['cell_area'][i]
         d       = 2 * radius(area)
-        data['gradient'][i,0,0,:,:]   = central_diff(
+        data['gradient'][0,0,:,:,i]   = central_diff(
             neighs['U'][0], data['U'][:, :, i], neighs['U'][1],
             d
             )
-        data['gradient'][i,0,1,:,:]  = central_diff(
+        data['gradient'][0,1,:,:,i]  = central_diff(
             neighs['V'][0], data['V'][:, :, i], neighs['V'][1],
             d
             )
-        data['gradient'][i,1,0,:,:]   = central_diff(
+        data['gradient'][1,0,:,:,i]   = central_diff(
             neighs['U'][2], data['U'][:, :, i], neighs['U'][3],
             d
             )
-        data['gradient'][i,1,1,:,:]   = central_diff(
+        data['gradient'][1,1,:,:,i]   = central_diff(
             neighs['V'][2], data['V'][:, :, i], neighs['V'][3],
             d
             )

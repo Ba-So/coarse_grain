@@ -7,6 +7,7 @@ import numpy as np
 import custom_io as cio
 import data_op as dop
 import math_op as mo
+import xarray as xr
 
 # the main file
 def user():
@@ -110,8 +111,24 @@ def do_the_dyads(data, grid_nfo):
         }
 
       #start cellwise iteration
+    doprint = 0
+    if not('dyad' in data):
+        l_vec = len(kwargs['UV']['vars'])
+        # in case of first call build output file
+        # output slot, outgoing info
+        print('creating array values["dyad"]')
+        data['dyad']        = np.empty([
+            l_vec,
+            l_vec,
+            grid_nfo['ntim'],
+            grid_nfo['nlev'],
+            grid_nfo['ncells']
+            ])
+
     for i in range(grid_nfo['ncells']):
-        print('cell {} of {}').format(i, grid['ncells'])
+        if i == doprint:
+            print('cell {} of {}').format(i, grid_nfo['ncells'])
+            doprint = doprint + 1000
         # get area members
         values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
         # add lat lon coordinates to values
@@ -122,7 +139,8 @@ def do_the_dyads(data, grid_nfo):
         for var in kwargs['vars'][:2]:
             values[var+'_bar'] = data[var+'_bar'][:, :, i]
         values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
-        values = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
+        data['dyad'][:,:,:,:,i] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
+
     return data
 
 def perform(data, grid_nfo, gradient_nfo, kwargs):
@@ -143,19 +161,32 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     print('computing the dyads')
     data = do_the_dyads(data, grid_nfo)
     # 'dyad' [0:1,0:1, ntim, nlev, ncells]
+    for key in data.iterkeys():
+        print key
     print('--------------')
     print('computing the turbulent friction')
-    data['turb_fric'] = np.empty[grid_nfo['ncells']]
+    data['turb_fric'] = np.empty([grid_nfo['ntim'],
+                                 grid_nfo['nlev'],
+                                 grid_nfo['ncells']])
+    doprint = 0
     for icell in range(grid_nfo['ncells']):
+        if i == doprint:
+            print('cell {} of {}').format(i, grid_nfo['ncells'])
+            doprint = doprint + 1000
         for i in range(2):
             for j in range(2):
-                data['turb_fric'][icell] = (
+                data['turb_fric'][:, :, icell] = (
                     data['dyad'][i, j, :, :, icell] *
-                    data['gradient'][icell, i, j, :, :])
+                    data['gradient'][i, j, :, :, icell])
     return data
 
 if __name__ == '__main__':
-    kwargs = user()
+   # kwargs = user()
+    kwargs = {
+        'experiment' : 'HS_FT_6000_days',
+        'num_rings' : 3,
+        'num_files' : 1
+    }
     kwargs['filep'] = u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
     kwargs['files'] = [
         n for n in
@@ -201,10 +232,15 @@ if __name__ == '__main__':
         data_run = {}
         for var in kwargs['variables']:
             data_run[var] = data[var].values
-
         # critcally wrong still:
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
-        # ^^^^^ correct that
+
+        t_fric = xr.DataArray(
+            data_run['turb_fric'],
+            dims = ['time', 'lev', 'ncells']
+        )
+        data  = data.assign(t_fric = t_fric)
+
         cio.write_netcdf(kwargs['files'][i]+'refined_{}'.format(kwargs['num_rings']),
                          data)
 
