@@ -195,13 +195,13 @@ def vector_flucts(values, grid_dic, num_hex, vars):
     rot_vec.fill(0)
     rot_vec[:, :,:,:]  = rotate_ca_members_to_local(
         values['lon'], values['lat'],
-        values[vars[0]][:,:,:], values[vars[1]][:,:,:])
+        values[vars[0]][:, :, :], values[vars[1]][:, :, :])
     rot_bar = np.empty([len(vars), grid_dic['ntim'], grid_dic['nlev']])
     rot_bar.fill(0)
-    rot_bar[:, :, :] =rotate_ca_members_to_local(
+    rot_bar[:, :, :] =rotate_single_to_local(
         values['lon'][0], values['lat'][0],
-        values[vars[0] + '_bar'][:,:],
-    values[vars[1] + '_bar'][:,:])
+        values[vars[0] + '_bar'][:, :],
+        values[vars[1] + '_bar'][:, :])
     result    = np.empty([
         len(vec), num_hex, grid_dic['ntim'], grid_dic['nlev']
         ])
@@ -597,6 +597,18 @@ def rotate_members_to_local(lon, lat, plon, plat, x, y):
                 lon[i], lat[i],
                 x[i,:,:], y[i,:,:]
                 )
+    return x_tnd, y_tnd
+
+def rotate_single_to_local(lon, lat, x, y):
+    # shouldn't be neccessary. The entropy production value should remain the same
+    # independent rotation back should therefore not be neccessary and additional
+    # computing time.
+
+    plon, plat = get_polar(lon, lat)
+    x_tnd, y_tnd  = rotate_vec_to_local(
+        plon, plat,
+        lon, lat,
+        x, y)
     return x_tnd, y_tnd
 
 def rotate_ca_members_to_global(lon, lat, x, y):
