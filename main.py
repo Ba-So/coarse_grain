@@ -170,8 +170,8 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
                                  grid_nfo['ncells']])
     doprint = 0
     for icell in range(grid_nfo['ncells']):
-        if i == doprint:
-            print('cell {} of {}').format(i, grid_nfo['ncells'])
+        if icell == doprint:
+            print('cell {} of {}').format(icell, grid_nfo['ncells'])
             doprint = doprint + 1000
         for i in range(2):
             for j in range(2):
@@ -241,7 +241,7 @@ if __name__ == '__main__':
         )
         data  = data.assign(t_fric = t_fric)
 
-        cio.write_netcdf(kwargs['files'][i]+'refined_{}'.format(kwargs['num_rings']),
+        cio.write_netcdf(kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings']),
                          data)
 
 
