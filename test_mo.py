@@ -108,10 +108,11 @@ def test_radius(radius):
 
 def test_max_min_bounds(data, grid_nfo):
   i_cell    = 3
-  for i_cell in range(3, 100):
+  for i_cell in [3,3000]:
     lonlat    = [grid_nfo['lon'][i_cell],grid_nfo['lat'][i_cell]]
     area      = grid_nfo['coarse_area'][i_cell]
-    bounds    = mo.max_min_bounds(lonlat, area)
+    print lonlat
+    bounds    = mo.max_min_bounds(lonlat, mo.radius(area))
     print bounds
   print('{}').format(np.shape(bounds))
   return None
@@ -278,8 +279,8 @@ if __name__== '__main__':
  # data_s = test_compute_dyads(data_s, grid_nfo)
  # data_s = test_radius(3.0)
  # data_s = test_get_members_idx(data_s)
-  print data_s
- # data_s = test_max_min_bounds(data, grid_nfo)
+ # print data_s
+  data_s = test_max_min_bounds(data, grid_nfo)
  # data_s = test_arc_len(grid_nfo)
  # data_s = test_circ_dist_avg(data_s, grid_nfo)
  # data_s = test_turn_spherical(grid_nfo)

@@ -24,7 +24,7 @@ def test_define_hex_area(grid):
     grid['area_num_hex'][i].values == 37) for i in range(40962)])
 
   Test = [(a[i] or b[i]) for i in range(40962)]
-  
+
   for i in range(40962):
     if Test[i] == False:
       print i
@@ -57,9 +57,9 @@ def test_hex_area(grid):
 
 
 def test_get_members(grid, files):
-  kwargs = {'variables' : ['U','RHO']} 
+  kwargs = {'variables' : ['U','RHO']}
   data= cio.read_netcdfs([files], 'time', kwargs, func= lambda ds, kwargs:cio.
-      extract_variables(ds, **kwargs)) 
+      extract_variables(ds, **kwargs))
   grid_nfo= {
             'area_num_hex' : grid['area_num_hex'].values,
             'area_neighbor_idx' : grid['area_neighbor_idx'].values,
@@ -77,9 +77,9 @@ def test_get_members(grid, files):
   return True
 
 def test_get_members_coords(grid, files):
-  kwargs = {'variables' : ['lat','lon']} 
+  kwargs = {'variables' : ['lat','lon']}
   data= cio.read_netcdfs([files], 'time', kwargs, func= lambda ds, kwargs:cio.
-      extract_variables(ds, **kwargs)) 
+      extract_variables(ds, **kwargs))
   grid_nfo= {
             'area_num_hex' : grid['area_num_hex'].values,
             'area_neighbor_idx' : grid['area_neighbor_idx'].values,
@@ -98,6 +98,14 @@ def test_get_members_coords(grid, files):
       return False
   return True
 
+def test_get_gradient_nfo(grid):
+
+    grid = do.get_gradient_nfo(grid)
+    print(grid['coords']).values[1]
+    print(grid['member_idx']).values[1]
+    print(grid['member_rad']).values[1]
+
+    return grid
 
 if __name__== '__main__':
   filep = u'/home1/kd031/projects/icon/experiments/HS_FT_3000_days/'
@@ -118,12 +126,13 @@ if __name__== '__main__':
  #print test_get_members(grid, filen[0])
   print test_hex_area(grid)
  #a = debug_hex_area(grid)
-  kwargs = {'variables' : ['U','RHO']} 
-  data= cio.read_netcdfs([filen[0]], 'time', kwargs, func= lambda ds, kwargs:cio.
-      extract_variables(ds, **kwargs)) 
+ # kwargs = {'variables' : ['U','RHO']}
+ # data= cio.read_netcdfs([filen[0]], 'time', kwargs, func= lambda ds, kwargs:cio.
+ #     extract_variables(ds, **kwargs))
 
-  #grid = cio.read_netcdfs([filep+gridf], 'time', kwargs, func= lambda ds, kwargs:
+ # grid = cio.read_netcdfs([filep+gridf], 'time', kwargs, func= lambda ds, kwargs:
   #    cio.read_grid(ds, **kwargs))
+  grid = test_get_gradient_nfo(grid)
   #grid = do.account_for_pentagons(grid)
 
 
