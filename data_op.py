@@ -165,11 +165,15 @@ def get_gradient_nfo(grid):
     # compute radii for finding members
     print(' --------------')
     print(' computing bounding radii')
-    check_rad = np.empty([ncells], dtype = int)
+    check_rad = np.empty([ncells], dtype = float)
     check_rad.fill(0)
     for i in range(ncells):
         check_rad[i] = 2 * mo.radius(cell_area[i])
 
+    test_rad = np.equal(check_rad, 0)
+    if True in test_rad:
+        print("bad stuff just happened")
+        return None
     # get bounding box to find members
     print(' --------------')
     print(' computing bounding boxes')
@@ -223,7 +227,7 @@ def get_gradient_nfo(grid):
     print('   checking candidates')
     member_idx = np.empty([ncells, 4, max_members], dtype = int)
     member_idx.fill(-1)
-    member_rad = np.empty([ncells, 4, max_members], dtype = int)
+    member_rad = np.empty([ncells, 4, max_members], dtype = float)
     member_rad.fill(-1)
     for i in range(ncells):
         for j in range(4):
