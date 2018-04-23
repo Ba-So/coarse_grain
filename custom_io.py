@@ -85,7 +85,7 @@ def read_grid(ds, path, num_rings):
   print 'computing gradient_nfo'
   grid = dop.get_gradient_nfo(grid)
   print '--------------'
-  print 'writing file as {}_refined_{}.nc'.format(path,num_rings)
+  print 'writing file as {}_refined_{}.nc'.format(path[:-3],num_rings)
   write_netcdf(path[:-3] + '_refined_{}.nc'.format(num_rings), grid)
   return grid
 
