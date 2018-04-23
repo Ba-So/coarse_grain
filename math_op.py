@@ -355,6 +355,7 @@ def max_min_bounds(lonlat, r):
             /(np.cos(lat_T)*np.cos(lonlat[1])))
         lon_min = lonlat[0] - d_lon
         lon_max = lonlat[0] + d_lon
+
         if lon_min < -np.pi:
             bounds[1, :, :] = bounds[0, :, :]
             bounds[0, 0, 1] = lon_min + 2 * np.pi
