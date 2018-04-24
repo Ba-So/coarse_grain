@@ -126,7 +126,7 @@ if __name__== '__main__':
  #print test_get_members(grid, filen[0])
   print test_hex_area(grid)
  #a = debug_hex_area(grid)
- # kwargs = {'variables' : ['U','RHO']}
+ # kwargs = {'variables' : ['U','RHO','THETA_V']}
  # data= cio.read_netcdfs([filen[0]], 'time', kwargs, func= lambda ds, kwargs:cio.
  #     extract_variables(ds, **kwargs))
 

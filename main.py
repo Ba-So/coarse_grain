@@ -75,11 +75,27 @@ def do_the_average(data, grid_nfo, kwargs):
 
     print('  ------------')
     print('  computing bar averages')
+    var = {
+        'vars'      :['U', 'V'],
+        'vector'       :['U', 'V']
+        }
     data = mo.area_avg('bar', grid_nfo, data, var, True)
+    var = {
+        'vars'      :['T', 'RHO'],
+        }
+    data = mo.area_avg('bar', grid_nfo, data, var, False)
     # compute \hat{U} and \hat{V}
     print('  ------------')
     print('  computing hat averages')
+    var = {
+        'vars'      :['U', 'V'],
+        'vector'       :['U', 'V']
+        }
     data = mo.area_avg('hat', grid_nfo, data, var, True)
+    var = {
+        'vars'      :['T'],
+        }
+    data = mo.area_avg('hat', grid_nfo, data, var)
 
     return data
 
@@ -168,16 +184,15 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     data['turb_fric'] = np.empty([grid_nfo['ntim'],
                                  grid_nfo['nlev'],
                                  grid_nfo['ncells']])
+    data['turb_fric'].fill(0.0)
     doprint = 0
-    for icell in range(grid_nfo['ncells']):
-        if icell == doprint:
-            print('cell {} of {}').format(icell, grid_nfo['ncells'])
-            doprint = doprint + 1000
-        for i in range(2):
-            for j in range(2):
-                data['turb_fric'][:, :, icell] = (
-                    data['dyad'][i, j, :, :, icell] *
-                    data['gradient'][i, j, :, :, icell])
+    for i in range(2):
+        for j in range(2):
+            data['turb_fric'][:, :, :] = data['turb_fric'] + np.multiply(
+                data['dyad'][i, j, :, :, :],
+                data['gradient'][i, j, :, :, :]
+                )
+    data['turb_fric'] = np.divide(data['turb_fric'], data['T'])
     return data
 
 if __name__ == '__main__':
@@ -197,7 +212,7 @@ if __name__ == '__main__':
         glob.glob(kwargs['filep']+'*grid*.nc') if
         os.path.isfile(n)]
     print kwargs['grid']
-    kwargs['variables'] = ['U', 'V', 'RHO']
+    kwargs['variables'] = ['U', 'V', 'RHO', 'THETA_V', 'EXNER']
     if not kwargs['files'] or not kwargs['grid']:
         sys.exit('Error:missing gridfiles or datafiles')
     grid = read_grid(kwargs)
@@ -232,7 +247,9 @@ if __name__ == '__main__':
         data_run = {}
         for var in kwargs['variables']:
             data_run[var] = data[var].values
-        # critcally wrong still:
+        #compute Temperature T for computation
+        data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
+
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
 
         print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))

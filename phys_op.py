@@ -27,7 +27,7 @@ def potT_to_T_pressure(vpT, P, atmos):
     R_o_cpd = rd / cpd #useful
 
     # heavy use of numpy functions for speedup
-    P_o_Pref = np.multiply(P, 1/Pref)
+    P_o_Pref = np.divide(P, Pref)
     P_o_Pref = np.power(P_o_Pref,R_o_cpd)
     T = np.multiply(vpT, P)
 

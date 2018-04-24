@@ -253,7 +253,7 @@ if __name__== '__main__':
   gridf = u'iconR2B05-grid_refined_3.nc'
   grid = cio.read_netcdfs([filep+gridf], 'time')
   grid = mo.coarse_area(grid)
-  kwargs = {'variables' : ['U','V','RHO']}
+  kwargs = {'variables' : ['U','V','RHO', 'THETA_V']}
   data= cio.read_netcdfs([filen[0]], 'time', kwargs, func= lambda ds, kwargs:cio.
       extract_variables(ds, **kwargs))
   grid_nfo={

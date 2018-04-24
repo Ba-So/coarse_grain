@@ -110,12 +110,10 @@ def avg_bar(values, factor, i_cell):
 
 def avg_hat(values, factor, i_cell, ntim, nlev):
     # multiply var area values (weighting)
-    values=  mult(values)
+    values =  mult(values)
     # Sum Rho*var(i) up
-    values=  np.sum(values,0)
-    for k in range(ntim):
-        for j in range(nlev):
-            values[k,j] = values[k,j]/factor[k,j,i_cell]
+    values =  np.sum(values,0)
+    values = np.divide(values, factor[:, :, i_cell])
     return values
     # -----
 
@@ -206,6 +204,7 @@ def vector_flucts(values, grid_dic, num_hex, vars):
         len(vars), num_hex, grid_dic['ntim'], grid_dic['nlev']
         ])
     result.fill(0)
+    # use np.subtract to optimize these
     for i in range(len(vars) ):
         for j in range(num_hex): # a bit ad hoc
             result[i, j, :, :]     = rot_vec[i, j, :, :] - rot_bar[i, :, :]
