@@ -235,6 +235,7 @@ if __name__ == '__main__':
         # critcally wrong still:
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
 
+        print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
         t_fric = xr.DataArray(
             data_run['turb_fric'],
             dims = ['time', 'lev', 'ncells']
