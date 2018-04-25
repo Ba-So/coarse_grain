@@ -7,6 +7,7 @@ import numpy as np
 import custom_io as cio
 import data_op as dop
 import math_op as mo
+import phys_op as po
 import xarray as xr
 
 # the main file
@@ -250,6 +251,10 @@ if __name__ == '__main__':
         #compute Temperature T for computation
         data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
 
+        data_run.pop('EXNER')
+        data_run.pop('THETA_V')
+
+
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
 
         print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
@@ -257,7 +262,14 @@ if __name__ == '__main__':
             data_run['turb_fric'],
             dims = ['time', 'lev', 'ncells']
         )
-        data  = data.assign(t_fric = t_fric)
+
+        T = xr.DataArray(
+            data_run['T'],
+            dims = ['time', 'lev', 'ncells']
+        )
+
+        data = data.assign(t_fric = t_fric)
+        data = data.assign(T = T)
 
         cio.write_netcdf(kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings']),
                          data)
