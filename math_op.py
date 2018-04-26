@@ -31,16 +31,15 @@ def area_avg(kind, grid_nfo, data, var, vec=False):
 
     if not vec:
         len_vec = 1
-        name.append('')
-        for va in var['vars']:
-            name[0] = name[0]+va
-        name[0] = name[0]+'_'+kind
+        name = var['vars'][:]
+        for i, item in enumerate(var['vars']):
+            name[i] = name[i]+'_'+kind
     else:
         len_vec = len(var['vector'])
         name = var['vector'][:]
         for i, item in enumerate(name):
             name[i] = name[i]+'_'+kind
-
+    print name
     if kind == 'hat':
 
         func = lambda val, fac, kwargs: avg_hat(val, fac, **kwargs)
@@ -103,9 +102,9 @@ def area_avg(kind, grid_nfo, data, var, vec=False):
 # -----
 def avg_bar(values, factor, i_cell):
     # multiply var area values (weighting)
-    values=  mult(values)
+    values =  mult(values)
     # Sum Rho*var(i) up
-    values=  np.sum(values,0)
+    values =  np.sum(values,0)
     return values/factor[i_cell]
 
 def avg_hat(values, factor, i_cell, ntim, nlev):
@@ -182,9 +181,13 @@ def scalar_flucts(values, grid_dic, num_hex, vars):
     result    = np.empty([num_hex, grid_dic['ntim'], grid_dic['nlev']])
     for i in range(len(vars) ):
         result.fill(0)
-        for j in range(num_hex):
-            result[j,:,:]     = values[vars[i]][ j, :, :] - values[vars[i]+'_bar'][:,:]
-        values[vars[i]+'_f'] = result
+        #for j in range(num_hex):
+        #    result[j,:,:]     = values[vars[i]][ j, :, :] - values[vars[i]+'_bar'][:,:]
+        #above is equivalent to operation below
+        values[vars[i]+'_f'] = np.subtract(
+            values[vars[i]],
+            values[vars[i]+'_bar'][np.newaxis,:]
+        )
 
     return values
 
@@ -205,9 +208,14 @@ def vector_flucts(values, grid_dic, num_hex, vars):
         ])
     result.fill(0)
     # use np.subtract to optimize these
-    for i in range(len(vars) ):
-        for j in range(num_hex): # a bit ad hoc
-            result[i, j, :, :]     = rot_vec[i, j, :, :] - rot_bar[i, :, :]
+    result = np.subtract(
+        rot_vec,
+        rot_bar[:,np.newaxis,:,:]
+    )
+    # equivalent to above
+    #for i in range(len(vars) ):
+    #    for j in range(num_hex): # a bit ad hoc
+    #        result[i, j, :, :]     = rot_vec[i, j, :, :] - rot_bar[i, :, :]
 
     for i in range(len(vars)):
         values[vars[i]+'_f'] = result[i, :, :, :]
@@ -224,15 +232,14 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
     # dimension of dyad
     l_vec   = len(vars)
 
-    if not('dyad' in values):
-        # in case of first call build output file
-        # output slot, outgoing info
-        values['dyad']        = np.empty([
-            l_vec,
-            l_vec,
-            grid_nfo['ntim'],
-            grid_nfo['nlev']
-            ])
+    # in case of first call build output file
+    # output slot, outgoing info
+    dyad        = np.empty([
+        l_vec,
+        l_vec,
+        grid_nfo['ntim'],
+        grid_nfo['nlev']
+        ])
   # the product of dyadic multiplication (probably term dyadic is misused here)
     product = np.empty([
             l_vec,
@@ -247,22 +254,19 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
     constituents = []
     for var in vars:
         constituents.append(values[var])
+    constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
-    helper                = {}
-    helper['cell_area']   = values['cell_area']
-    helper['RHO']         = values['RHO']
+    product = np_einsum('iklm,jklm->ijklm', constituents, constituents)
+    # average over coarse_area
+    dyad = np.einsum(
+        'ijklm,klm,klm->ijlm',
+        product,
+        values['cell_area'],
+        values['RHO']
+    )
+    dyad = np.divide(dyad, grid_nfo['coarse_area'][i_cell])
 
-    for i in range(l_vec):
-        for j in range(l_vec):
-            product[i,j,:,:,:] = constituents[i] * constituents[j]
-    for i in range(l_vec):
-        for j in range(l_vec):
-            helper['product']    = product[i,j,:,:,:]
-            values['dyad'][i,j,:,:] = avg_bar(
-                helper,
-                grid_nfo['coarse_area'],
-                i_cell)
-    return values['dyad']
+    return dyad
 
 def gradient(data, grid_nfo, gradient_nfo, var):
 
@@ -515,18 +519,23 @@ def mult(dataset):
             helper = np.multiply(helper, data)
         elif data.ndim == 1:
             if data.shape[0] == helper.shape[0]:
-                    for i in range(data.shape[0]):
-                        helper[i,:,:] = helper[i,:,:]*data[i]
+                helper = np.multiply(helper,data[:, np.newaxis, np.newaxis])
+                #    for i in range(data.shape[0]):
+                #        helper[i,:,:] = helper[i,:,:]*data[i]
             elif data.shape[0] == helper.shape[1]:
-                    for i in range(data.shape[0]):
-                        helper[:,i,:] = helper[:,i,:]*data[i]
+                helper = np.multiply(helper, data[np.newaxis, :, np.newaxis])
+                #    for i in range(data.shape[0]):
+                #        helper[:,i,:] = helper[:,i,:]*data[i]
             elif data.shape[0] == helper.shape[2]:
-
-                    for i in range(data.shape[0]):
-                        helper[:,:,i] = helper[:,:,i]*data[i]
+                helper = np.multiply(helper,data[np.newaxis, np.newaxis, :])
+                #    for i in range(data.shape[0]):
+                #        helper[:,:,i] = helper[:,:,i]*data[i]
             else:
                     print 'I can not find a way to cast {} on {}'.format(data.shape,
                         helper.shape)
+        else:
+                print 'I can not find a way to cast {} on {}'.format(data.shape,
+                    helper.shape)
     return helper
 
 

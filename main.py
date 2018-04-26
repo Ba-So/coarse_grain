@@ -98,6 +98,22 @@ def do_the_average(data, grid_nfo, kwargs):
         }
     data = mo.area_avg('hat', grid_nfo, data, var)
 
+    print('mean VelocityU  : bar:{}, hat:{}').format(
+        np.mean(data['U_bar']),
+        np.mean(data['U_hat'])
+    )
+    print('mean VelocityV  : bar:{}, hat:{}').format(
+        np.mean(data['V_bar']),
+        np.mean(data['V_hat'])
+    )
+    print('mean Density    : bar:{}, hat: - ').format(
+        np.mean(data['RHO_bar'])
+    )
+    print('mean Temperature: bar:{}, hat:{}').format(
+        np.mean(data['T_bar']),
+        np.mean(data['T_hat'])
+    )
+
     return data
 
 def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
@@ -108,6 +124,10 @@ def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
         }
     data = mo.gradient(data, grid_nfo, gradient_nfo, var)
 
+    print('mean velocity gradient u_x: {}').format(np.mean(data['gradient'][0,0]))
+    print('mean velocity gradient u_y: {}').format(np.mean(data['gradient'][0,1]))
+    print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
+    print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
     return data
 
 def do_the_dyads(data, grid_nfo):
@@ -146,6 +166,8 @@ def do_the_dyads(data, grid_nfo):
         if i == doprint:
             print('cell {} of {}').format(i, grid_nfo['ncells'])
             doprint = doprint + 1000
+            print('mean fluctuations U: {}').format(np.mean(values['U_f']))
+            print('mean fluctuations V: {}').format(np.mean(values['V_f']))
         # get area members
         values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
         # add lat lon coordinates to values
@@ -187,13 +209,16 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
                                  grid_nfo['ncells']])
     data['turb_fric'].fill(0.0)
     doprint = 0
-    for i in range(2):
-        for j in range(2):
-            data['turb_fric'][:, :, :] = data['turb_fric'] + np.multiply(
-                data['dyad'][i, j, :, :, :],
-                data['gradient'][i, j, :, :, :]
-                )
-    data['turb_fric'] = np.divide(data['turb_fric'], data['T'])
+
+    data['turb_fric'] = np.einsum('ijklm,ijklm->klm', data['dyad'], data['gradient'])
+    #equivalent to:
+    #for i in range(2):
+    #    for j in range(2):
+    #        data['turb_fric'][:, :, :] = data['turb_fric'] + np.multiply(
+    #            data['dyad'][i, j, :, :, :],
+    #            data['gradient'][i, j, :, :, :]
+    #            )
+    data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T'])
     return data
 
 if __name__ == '__main__':

@@ -44,11 +44,15 @@ def extract_variables(ds, variables):
   ds_o = xr.Dataset(data)
 
   # for convienience.
-  ds_o = ds_o.rename({
-          'cell2' : 'ncells',
-          'vlon' : 'clon',
-          'vlat' : 'clat'
-          })
+  check = ['vlon', 'vlat']
+  ds_keys = [i for i in ds_o.variables.iterkeys()]
+  if 'cell2' in ds_o.dims.iterkeys():
+      ds_o = ds_o.rename({'cell2' : 'ncells'})
+  if all(x in ds_keys for x in check):
+        ds_o = ds_o.rename({
+                'vlon' : 'clon',
+                'vlat' : 'clat'
+            })
 
   return ds_o
 
