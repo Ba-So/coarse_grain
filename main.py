@@ -148,7 +148,7 @@ def do_the_dyads(data, grid_nfo):
         }
 
       #start cellwise iteration
-    doprint = 0
+    doprint = 1000
     if not('dyad' in data):
         l_vec = len(kwargs['UV']['vars'])
         # in case of first call build output file
@@ -218,7 +218,7 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     #            data['dyad'][i, j, :, :, :],
     #            data['gradient'][i, j, :, :, :]
     #            )
-    data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T'])
+    data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T_bar'])
     return data
 
 if __name__ == '__main__':
