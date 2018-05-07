@@ -95,6 +95,7 @@ def read_grid(ds, path, num_rings):
 
 def write_netcdf(path, ds):
     """writes Information to .nc file"""
+    print ('writing to {}').format(path)
     ds.to_netcdf(path, mode='w')
 
 
