@@ -315,7 +315,7 @@ def gradient(data, grid_nfo, gradient_nfo, var):
 def central_diff(xl, x, xr, d):
         # no turning necessary here since gradients are along lats / longs
 
-        return (xl-2*x+xr)/d**2
+        return (xl-xr)/(2*d)
 
 def radius(area):
     '''returns radius of circle on sphere in radians'''
