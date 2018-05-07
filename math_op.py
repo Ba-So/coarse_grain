@@ -256,10 +256,10 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
         constituents.append(values[var])
     constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
-    product = np_einsum('iklm,jklm->ijklm', constituents, constituents)
+    product = np.einsum('iklm,jklm->ijklm', constituents, constituents)
     # average over coarse_area
     dyad = np.einsum(
-        'ijklm,klm,klm->ijlm',
+        'ijklm,k,klm->ijlm',
         product,
         values['cell_area'],
         values['RHO']
