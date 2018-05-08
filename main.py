@@ -7,10 +7,7 @@ import numpy as np
 import custom_io as cio
 import data_op as dop
 import math_op as mo
-<<<<<<< HEAD
 import phys_op as po
-=======
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
 import xarray as xr
 
 # the main file
@@ -79,7 +76,6 @@ def do_the_average(data, grid_nfo, kwargs):
 
     print('  ------------')
     print('  computing bar averages')
-<<<<<<< HEAD
     var = {
         'vars'      :['U', 'V'],
         'vector'       :['U', 'V']
@@ -117,31 +113,21 @@ def do_the_average(data, grid_nfo, kwargs):
         np.mean(data['T_bar']),
         np.mean(data['T_hat'])
     )
-=======
-    data = mo.area_avg('bar', grid_nfo, data, var, True)
-    # compute \hat{U} and \hat{V}
-    print('  ------------')
-    print('  computing hat averages')
-    data = mo.area_avg('hat', grid_nfo, data, var, True)
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
 
     return data
 
 def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
-    '''computes the gradients of u an v'''
+    '''computes the gradients of u and v'''
     var = {
-        'vars'      :['U', 'V'],
-        'vector'      :['U', 'V']
+        'vars'      :['U_hat', 'V_hat'],
+        'vector'      :['U_hat', 'V_hat']
         }
     data = mo.gradient(data, grid_nfo, gradient_nfo, var)
 
-<<<<<<< HEAD
     print('mean velocity gradient u_x: {}').format(np.mean(data['gradient'][0,0]))
     print('mean velocity gradient u_y: {}').format(np.mean(data['gradient'][0,1]))
     print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
     print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
-=======
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
     return data
 
 def do_the_dyads(data, grid_nfo):
@@ -162,11 +148,7 @@ def do_the_dyads(data, grid_nfo):
         }
 
       #start cellwise iteration
-<<<<<<< HEAD
     doprint = 1000
-=======
-    doprint = 0
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
     if not('dyad' in data):
         l_vec = len(kwargs['UV']['vars'])
         # in case of first call build output file
@@ -184,11 +166,6 @@ def do_the_dyads(data, grid_nfo):
         if i == doprint:
             print('cell {} of {}').format(i, grid_nfo['ncells'])
             doprint = doprint + 1000
-<<<<<<< HEAD
-            print('mean fluctuations U: {}').format(np.mean(values['U_f']))
-            print('mean fluctuations V: {}').format(np.mean(values['V_f']))
-=======
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
         # get area members
         values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
         # add lat lon coordinates to values
@@ -197,7 +174,8 @@ def do_the_dyads(data, grid_nfo):
         values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
         # get coarse values
         for var in kwargs['vars'][:2]:
-            values[var+'_bar'] = data[var+'_bar'][:, :, i]
+            values[var+'_hat'] = data[var+'_hat'][:, :, i]
+        # compute fluctuations
         values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
         data['dyad'][:,:,:,:,i] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
 
@@ -228,7 +206,6 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     data['turb_fric'] = np.empty([grid_nfo['ntim'],
                                  grid_nfo['nlev'],
                                  grid_nfo['ncells']])
-<<<<<<< HEAD
     data['turb_fric'].fill(0.0)
     doprint = 0
 
@@ -241,18 +218,6 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     #            data['gradient'][i, j, :, :, :]
     #            )
     data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T_bar'])
-=======
-    doprint = 0
-    for icell in range(grid_nfo['ncells']):
-        if icell == doprint:
-            print('cell {} of {}').format(icell, grid_nfo['ncells'])
-            doprint = doprint + 1000
-        for i in range(2):
-            for j in range(2):
-                data['turb_fric'][:, :, icell] = (
-                    data['dyad'][i, j, :, :, icell] *
-                    data['gradient'][i, j, :, :, icell])
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
     return data
 
 if __name__ == '__main__':
@@ -272,11 +237,7 @@ if __name__ == '__main__':
         glob.glob(kwargs['filep']+'*grid*.nc') if
         os.path.isfile(n)]
     print kwargs['grid']
-<<<<<<< HEAD
     kwargs['variables'] = ['U', 'V', 'RHO', 'THETA_V', 'EXNER']
-=======
-    kwargs['variables'] = ['U', 'V', 'RHO']
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
     if not kwargs['files'] or not kwargs['grid']:
         sys.exit('Error:missing gridfiles or datafiles')
     grid = read_grid(kwargs)
@@ -311,17 +272,13 @@ if __name__ == '__main__':
         data_run = {}
         for var in kwargs['variables']:
             data_run[var] = data[var].values
-<<<<<<< HEAD
         #compute Temperature T for computation
         data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
 
         data_run.pop('EXNER')
         data_run.pop('THETA_V')
 
-
-=======
         # critcally wrong still:
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
 
         print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
@@ -329,7 +286,6 @@ if __name__ == '__main__':
             data_run['turb_fric'],
             dims = ['time', 'lev', 'ncells']
         )
-<<<<<<< HEAD
 
         T = xr.DataArray(
             data_run['T'],
@@ -338,9 +294,6 @@ if __name__ == '__main__':
 
         data = data.assign(t_fric = t_fric)
         data = data.assign(T = T)
-=======
-        data  = data.assign(t_fric = t_fric)
->>>>>>> 481d608864e1dbceab3794732d8c3773e0959288
 
         cio.write_netcdf(kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings']),
                          data)
