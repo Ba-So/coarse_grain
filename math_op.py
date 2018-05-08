@@ -293,19 +293,19 @@ def gradient(data, grid_nfo, gradient_nfo, var):
         area    = grid_nfo['cell_area'][i]
         d       = 2 * radius(area)
         data['gradient'][0,0,:,:,i]   = central_diff(
-            neighs['U'][0], data['U'][:, :, i], neighs['U'][1],
+            neighs['U_hat'][0], data['U_hat'][:, :, i], neighs['U_hat'][1],
             d
             )
         data['gradient'][0,1,:,:,i]  = central_diff(
-            neighs['V'][0], data['V'][:, :, i], neighs['V'][1],
+            neighs['V_hat'][0], data['V_hat'][:, :, i], neighs['V_hat'][1],
             d
             )
         data['gradient'][1,0,:,:,i]   = central_diff(
-            neighs['U'][2], data['U'][:, :, i], neighs['U'][3],
+            neighs['U_hat'][2], data['U_hat'][:, :, i], neighs['U_hat'][3],
             d
             )
         data['gradient'][1,1,:,:,i]   = central_diff(
-            neighs['V'][2], data['V'][:, :, i], neighs['V'][3],
+            neighs['V_hat'][2], data['V_hat'][:, :, i], neighs['V_hat'][3],
             d
             )
 
