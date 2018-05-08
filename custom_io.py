@@ -49,10 +49,10 @@ def extract_variables(ds, variables):
   if 'cell2' in ds_o.dims.iterkeys():
       ds_o = ds_o.rename({'cell2' : 'ncells'})
   if all(x in ds_keys for x in check):
-        ds_o = ds_o.rename({
-                'vlon' : 'clon',
-                'vlat' : 'clat'
-            })
+      ds_o = ds_o.rename({
+        'vlon' : 'clon',
+        'vlat' : 'clat'
+        })
 
   return ds_o
 
