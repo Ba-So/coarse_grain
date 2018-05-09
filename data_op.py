@@ -150,7 +150,7 @@ def get_gradient_nfo(grid):
     lon = grid['lon'].values
     lat = grid['lat'].values
 
-    max_members = 100
+    max_members = 200
 
     coords = np.empty([ncells, 4, 2])
     coords.fill(0)

@@ -217,6 +217,7 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     #            data['dyad'][i, j, :, :, :],
     #            data['gradient'][i, j, :, :, :]
     #            )
+    data['turb_diss'] = -1 * np.divide(data['turb_firc'], data['RHO_bar'])
     data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T_bar'])
     return data
 
@@ -282,8 +283,14 @@ if __name__ == '__main__':
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
 
         print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
+        print('globally averaged entropy production rate: {}').format(np.mean(data_run['trub_fric']))
         t_fric = xr.DataArray(
             data_run['turb_fric'],
+            dims = ['time', 'lev', 'ncells']
+        )
+
+        t_diss = xr.DataArray(
+            data_run['turb_diss'],
             dims = ['time', 'lev', 'ncells']
         )
 
@@ -293,6 +300,7 @@ if __name__ == '__main__':
         )
 
         data = data.assign(t_fric = t_fric)
+        data = data.assign(t_diss = t_diss)
         data = data.assign(T = T)
 
         cio.write_netcdf(kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings']),
