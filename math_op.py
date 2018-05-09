@@ -273,6 +273,8 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
 
 def gradient(data, grid_nfo, gradient_nfo, var):
 
+    re        = 6.37111*10**6
+
     data['gradient']  = np.empty([
         2, 2,
         grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells']
@@ -291,7 +293,7 @@ def gradient(data, grid_nfo, gradient_nfo, var):
         # check for correct keys
         neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
         area    = grid_nfo['cell_area'][i]
-        d       = 2 * radius(area)
+        d       = 2 * radius(area) * re
         data['gradient'][0,0,:,:,i]   = central_diff(
             neighs['U_hat'][0], data['U_hat'][:, :, i], neighs['U_hat'][1],
             d
@@ -318,7 +320,9 @@ def gradient(data, grid_nfo, gradient_nfo, var):
 def central_diff(xl, x, xr, d):
         # no turning necessary here since gradients are along lats / longs
 
-        return (xl-xr)/(2*d)
+        return np.divide(np.subtract(xl,xr), 2 * d)
+
+        #return (xl-xr)/(2*d)
 
 def radius(area):
     '''returns radius of circle on sphere in radians'''
