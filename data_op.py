@@ -110,12 +110,15 @@ def get_members(grid_nfo, data, i, variables):
   out       = {}
 
   for var in variables:
-    if data[var].ndim == 3:
-      out[var] = np.array([data[var][:,:,j] for j in a_nei_idx[:num_hex]])
-    if data[var].ndim == 2:
-      out[var] = np.array([data[var][:,j] for j in a_nei_idx[:num_hex]])
-    if data[var].ndim == 1:
-      out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
+      if data[var].ndim == 3:
+          out[var] = data[var][:, :, a_nei_idx[:num_hex]]
+         # out[var] = np.array([data[var][:,:,j] for j in a_nei_idx[:num_hex]])
+      if data[var].ndim == 2:
+          out[var] = data[var][:, a_nei_idx[:num_hex]]
+        #  out[var] = np.array([data[var][:,j] for j in a_nei_idx[:num_hex]])
+      if data[var].ndim == 1:
+          out[var] = data[var][a_nei_idx[:num_hex]]
+        #  out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
 
   return out
 
@@ -126,11 +129,14 @@ def get_members_idx(data, idxcs, variables):
 
     for var in variables:
         if data[var].ndim == 3:
-            out[var] = np.array([data[var][:, :, j] for j in idxcs])
+            out[var] = data[var][:, :, idxcs]
+        #    out[var] = np.array([data[var][:, :, j] for j in idxcs])
         if data[var].ndim == 2:
-            out[var] = np.array([data[var][:, j] for j in idxcs])
+            out[var] = data[var][:, idxcs]
+        #    out[var] = np.array([data[var][:, j] for j in idxcs])
         if data[var].ndim == 1:
-            out[var] = np.array([data[var][j] for j in idxcs])
+            out[var] = data[var][idxcs]
+        #    out[var] = np.array([data[var][j] for j in idxcs])
 
     return out
 

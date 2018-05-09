@@ -29,7 +29,7 @@ if __name__ == '__main__':
         glob.glob(kwargs['filep']+'*grid*.nc') if
         os.path.isfile(n)]
     print kwargs['grid']
-    kwargs['variables'] = ['U', 'V', 'RHO', 'T', 't_fric']
+    kwargs['variables'] = ['U', 'V', 'RHO', 'T', 't_fric', 't_diss']
     if not kwargs['files'] or not kwargs['grid']:
         sys.exit('Error:missing gridfiles or datafiles')
     grid = ma.read_grid(kwargs)
