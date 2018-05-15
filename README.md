@@ -12,10 +12,8 @@ This routine is supposed to be used to learn about the statistics of local entro
 
 The turbulent diffusion as per Smagorinsky is formulated as follows:
 
-```
 - <img src="http://latex.codecogs.com/gif.latex?%5Cepsilon%20%3D%20%5Chat%7BT%7D%5Csigma"/> 
 - <img src="http://latex.codecogs.com/gif.latex?%5C%5C%20%26%3D-%28%5Coverline%7B%5Crho%20%5Cvec%7Bv%7D%5E%7B%27%27%7D%5Cvec%7Bv%7D%5E%7B%27%27%7D%7D%29%5Ccdot%20%5Cnabla%20%5Chat%7Bv%7D" /> 
-```
 
 Where the ^ are mass weighted volumetric averages. In modeling the averaged quantities are actually resolved, where the '' fluctuations are unresolved and parametrized. 
 
@@ -23,60 +21,16 @@ Where the ^ are mass weighted volumetric averages. In modeling the averaged quan
 
 In order to learn about the statistics of entropy production rates at a certain resolution, a model run on higher resolution is done and subsequently coarse-grained:
 
-```
 - <img src="http://latex.codecogs.com/gif.latex?%5Chat%7BI%7D%20%3D%20%5Chat%7B%5Chat%7BI%7D%7D%20&plus;%20%5Chat%7BI%7D%5E%7B%27%27%7D"/> 
-```
 
 Where the second ^ is the coarse-grained average. The local entropy production through turbulent diffusion.
 
 
-```
 - <img src="http://latex.codecogs.com/gif.latex?%5Chat%7B%5Cepsilon%7D%20%3D%20%5Chat%7B%5Chat%7BT%7D%7D%5Chat%7B%5Csigma%7D"/> 
 - <img src="http://latex.codecogs.com/gif.latex?%3D-%28%5Coverline%7B%5Crho%20%5Chat%7B%5Cvec%7Bv%7D%5E%7B%27%27%7D%7D%5Chat%7B%5Cvec%7Bv%7D%5E%7B%27%27%7D%7D%7D%29%20%5Ccdot%20%5Cnabla%5Chat%7B%5Chat%7Bv%7D%7D" /> 
 
-```
+## run Shematic: 
 
-Whenever coarse_grain is run on a new data set it perpares the gridfile. 
+ to be continued
 
 
-# This Script will take the Information on wind velocities, Temperature and
-
-# 
-# density to compute the Dissipation:
-# \epsilon = \hat{T} \sigma 
-#          = -(\bar{\rho \vec{v}^{''}\vec{v}^{''}})\cdot \nabla\hat(v)
-#
-# The initial try will only look at horizontal Diffusion, later the full 3D
-# Diffusion may be included
-#
-# \hat(\v) 
-#          is the weight averaged velocity over a flexible domain in horizontal
-#          orientation
-#
-# \nabla \hat(v)
-#          is a tensor, use center of neighbouring domains to compute correct
-#          d/dx and d/dy!! ( I.e Matrix)!
-#
-# \vec{v}^{''} = \v'
-#          will be computed on each grid point contained in the flexible domain
-#
-# \v'\v' 
-#          is a Tensor
-#
-# \bar{\rho \v'\v'}
-#          is the average over the felxible domain, where \rho is the density
-#          at each of the respective gird points
-#
-# \bar{\rho \v'\v'} \cdot \nabla\hat{v} 
-#          therefore requires the tensor multiplication
-#
-# \hat{T} 
-#          is the Temperature weight averaged over the flexible domain
-#
-# \sigma
-#          will then be the entropy production over that respective domain
-#          some thinking about the physical thing that might be is required.
-#          But this might however result in negative entropy production values.
-#
-# u_tf v_tf
-#          are the quantities taken from the ICON output
