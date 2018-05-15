@@ -12,8 +12,10 @@ This routine is supposed to be used to learn about the statistics of local entro
 
 The turbulent diffusion as per Smagorinsky is formulated as follows:
 
-- <img src="https://latex.codecogs.com/gif.latex?\epsilon=\hat{T}\sigma \\ 
--         = -(\bar{\rho \vec{v}^{''}\vec{v}^{''}})\cdot \nabla\hat(v)" /> 
+'''
+- <img src="http://latex.codecogs.com/gif.download?%5Cepsilon%26%3D%5Chat%7BT%7D%5Csigma"/> 
+- <img src="http://latex.codecogs.com/gif.download?%3D-%28%5Cbar%7B%5Crho%20%5Cvec%7Bv%7D%5E%7B%27%27%7D%5Cvec%7Bv%7D%5E%7B%27%27%7D%7D%29%5Ccdot%20%5Cnabla%20%5Chat%7Bv%7D" /> 
+'''
 
 Where the ^ are mass weighted volumetric averages. In modeling the averaged quantities are actually resolved, where the '' fluctuations are unresolved and parametrized. 
 
