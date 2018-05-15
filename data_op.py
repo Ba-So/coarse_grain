@@ -108,17 +108,18 @@ def get_members(grid_nfo, data, i, variables):
   num_hex   = grid_nfo['area_num_hex'][i]
   a_nei_idx = grid_nfo['area_neighbor_idx'][:,i]
   out       = {}
+  out_2       = {}
 
   for var in variables:
       if data[var].ndim == 3:
           out[var] = data[var][:, :, a_nei_idx[:num_hex]]
-         # out[var] = np.array([data[var][:,:,j] for j in a_nei_idx[:num_hex]])
       if data[var].ndim == 2:
           out[var] = data[var][:, a_nei_idx[:num_hex]]
         #  out[var] = np.array([data[var][:,j] for j in a_nei_idx[:num_hex]])
       if data[var].ndim == 1:
           out[var] = data[var][a_nei_idx[:num_hex]]
         #  out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
+      out[var] = np.moveaxis(out[var], -1, 0)
 
   return out
 

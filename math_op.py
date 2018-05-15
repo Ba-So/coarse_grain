@@ -131,7 +131,7 @@ def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
         grid_nfo['nlev']
         ])
     rot_vec.fill(0)
-    rot_vec[:,:,:,:]  = rotate_ca_members_to_local(
+    rot_vec[:,:,:,:] = rotate_ca_members_to_local(
         coords['lon'], coords['lat'],
         values[vec[0]][:,:,:], values[vec[1]][:,:,:]
         )
@@ -281,14 +281,14 @@ def gradient(data, grid_nfo, gradient_nfo, var):
         ])
     data['gradient'].fill(0)
 
-    info_bnd = 0
+    info_bnd = 5000
     for i in range(grid_nfo['ncells']):
         # chekc for correct key
         # define distance
         # assume circle pi r^2 => d= 2*sqrt(A/pi)
         if i == info_bnd:
             print('progress: {} cells of {}').format(info_bnd, grid_nfo['ncells'])
-            info_bnd = info_bnd + 1000
+            info_bnd = info_bnd + 5000
 
         # check for correct keys
         neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)

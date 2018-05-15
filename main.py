@@ -148,7 +148,7 @@ def do_the_dyads(data, grid_nfo):
         }
 
       #start cellwise iteration
-    doprint = 1000
+    doprint = 5000
     if not('dyad' in data):
         l_vec = len(kwargs['UV']['vars'])
         # in case of first call build output file
@@ -165,7 +165,7 @@ def do_the_dyads(data, grid_nfo):
     for i in range(grid_nfo['ncells']):
         if i == doprint:
             print('cell {} of {}').format(i, grid_nfo['ncells'])
-            doprint = doprint + 1000
+            doprint = doprint + 5000
         # get area members
         values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
         # add lat lon coordinates to values
@@ -226,7 +226,7 @@ if __name__ == '__main__':
     kwargs = {
         'experiment' : 'HS_FT_6000_days',
         'num_rings' : 3,
-        'num_files' : 1
+        'num_files' : 179
     }
     kwargs['filep'] = u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
     kwargs['files'] = [
