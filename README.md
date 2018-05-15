@@ -1,4 +1,40 @@
+# Coarse Graining Routine
+
+This Routine is written for the model output of the ICON-IAP on an unstructured grid.
+
+It's neccessary input are the horizontal velocities u and v, the density and temperature at gridpoints. Furthermore the size of individual gridcells and their longditude and latitude coordinates.
+
+## Intended function:
+
+This routine is supposed to be used to learn about the statistics of local entropy production rates. For now "only" the local entropy procduction rates due to turbulent diffusion are computed. Future work may add the local entropy production rates due to heat diffusion.
+
+### entropy production through turbulent diffusion 
+
+The turbulent diffusion as per Smagorinsky is formulated as follows:
+
+- <img src="https://latex.codecogs.com/gif.latex?\epsilon=\hat{T}\sigma \\ 
+-         = -(\bar{\rho \vec{v}^{''}\vec{v}^{''}})\cdot \nabla\hat(v)" /> 
+
+Where the ^ are mass weighted volumetric averages. In modeling the averaged quantities are actually resolved, where the '' fluctuations are unresolved and parametrized. 
+
+### Idea and Function of this project:
+
+In order to learn about the statistics of entropy production rates at a certain resolution, a model run on higher resolution is done and subsequently coarse-grained:
+
+- <img src="https://latex.codecogs.com/gif.latex?\hat{I}=\hat\hat{I} + \hat{I}^{''}"/> 
+
+Where the second ^ is the coarse-grained average. The local entropy production through turbulent diffusion.
+
+- <img src="https://latex.codecogs.com/gif.latex?\hat{epsilon}=\hat\hat{T}\sigma \\ 
+-         = -(\bar{\rho \hat{\vec{v}}^{''}\hat{\vec{v}}^{''}})\cdot \nabla\hat\hat(v)" /> 
+
+
+Whenever coarse_grain is run on a new data set it perpares the gridfile. 
+
+
 # This Script will take the Information on wind velocities, Temperature and
+
+# 
 # density to compute the Dissipation:
 # \epsilon = \hat{T} \sigma 
 #          = -(\bar{\rho \vec{v}^{''}\vec{v}^{''}})\cdot \nabla\hat(v)
