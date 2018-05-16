@@ -112,12 +112,12 @@ def get_members(grid_nfo, data, i, variables):
 
   for var in variables:
       if data[var].ndim == 3:
-          out[var] = data[var][:, :, a_nei_idx[:num_hex]]
+          out[var] = data[var][:, :, np.where(a_nei_idx[:num_hex]>-1)]
       if data[var].ndim == 2:
-          out[var] = data[var][:, a_nei_idx[:num_hex]]
+          out[var] = data[var][:, np.where(a_nei_idx[:num_hex]>-1)]
         #  out[var] = np.array([data[var][:,j] for j in a_nei_idx[:num_hex]])
       if data[var].ndim == 1:
-          out[var] = data[var][a_nei_idx[:num_hex]]
+          out[var] = data[var][np.where(a_nei_idx[:num_hex]>-1)]
         #  out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
       out[var] = np.moveaxis(out[var], -1, 0)
 
@@ -130,13 +130,13 @@ def get_members_idx(data, idxcs, variables):
 
     for var in variables:
         if data[var].ndim == 3:
-            out[var] = data[var][:, :, idxcs]
+            out[var] = data[var][:, :, np.where(idxcs>-1)]
         #    out[var] = np.array([data[var][:, :, j] for j in idxcs])
         if data[var].ndim == 2:
-            out[var] = data[var][:, idxcs]
+            out[var] = data[var][:, np.where(idxcs>-1)]
         #    out[var] = np.array([data[var][:, j] for j in idxcs])
         if data[var].ndim == 1:
-            out[var] = data[var][idxcs]
+            out[var] = data[var][np.where(idxcs>-1)]
         #    out[var] = np.array([data[var][j] for j in idxcs])
 
     return out

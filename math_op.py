@@ -3,6 +3,7 @@ import sys
 import xarray as xr
 import numpy as np
 import data_op as dop
+from multiprocessing import Pool
 
 def coarse_area(grid):
     '''Sums the coarse_area from the areas of its members'''
@@ -282,6 +283,76 @@ def gradient(data, grid_nfo, gradient_nfo, var):
     data['gradient'].fill(0)
 
     info_bnd = 5000
+    for i in range(grid_nfo['ncells']):
+        # chekc for correct key
+        # define distance
+        # assume circle pi r^2 => d= 2*sqrt(A/pi)
+        if i == info_bnd:
+            print('progress: {} cells of {}').format(info_bnd, grid_nfo['ncells'])
+            info_bnd = info_bnd + 5000
+
+        # check for correct keys
+        neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
+        area    = grid_nfo['cell_area'][i]
+        d       = 2 * radius(area) * re
+        data['gradient'][0,0,:,:,i]   = central_diff(
+            neighs['U_hat'][0], data['U_hat'][:, :, i], neighs['U_hat'][1],
+            d
+            )
+        data['gradient'][0,1,:,:,i]  = central_diff(
+            neighs['V_hat'][0], data['V_hat'][:, :, i], neighs['V_hat'][1],
+            d
+            )
+        data['gradient'][1,0,:,:,i]   = central_diff(
+            neighs['U_hat'][2], data['U_hat'][:, :, i], neighs['U_hat'][3],
+            d
+            )
+        data['gradient'][1,1,:,:,i]   = central_diff(
+            neighs['V_hat'][2], data['V_hat'][:, :, i], neighs['V_hat'][3],
+            d
+            )
+
+    # find/interpolate value at distance d in x/y direction
+    #     -> use geodesics / x/y along longditudes/latitudes
+    # turn values at distance (with rot_vec)
+    # compute d/dz use fassinterpol x_i-1+2x_i+x_i+1/dx including grid value?
+    return data
+
+def gradient_mp(data, grid_nfo, gradient_nfo, var):
+    num_procs = 25
+    cellindcs = np.arange[grid_nfo['ncells']]
+    chunks = [cellindcs[i::num_procs] for i in range(num_procs)]
+
+    pool = Pool(processes=num_procs)
+
+    result = pool.map(gradient_s_mp, chunks)
+
+    return data
+
+def prep_gradient(data, grid_nfo, var):
+    neighs = np.array([grid_nfo['ncells'], 4])
+    members = np.array([grid_nfo['ncells'],
+                        grid_nfo['nlev'],
+                        grid_nfo['ntim'],
+                        200
+                        ])
+    members = data[var][ :, :, ]
+    for x in var:
+        for i in range(grid_nfo['ncells']):
+            neighs = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
+
+    return neighs
+
+def gradient_s_mp(chunk, data, grid_nfo, gradient_nfo, var):
+
+    re        = 6.37111*10**6
+
+    data['gradient']  = np.empty([
+        2, 2,
+        grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells']
+        ])
+    data['gradient'].fill(0)
+
     for i in range(grid_nfo['ncells']):
         # chekc for correct key
         # define distance
