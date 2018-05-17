@@ -116,12 +116,49 @@ def do_the_average(data, grid_nfo, kwargs):
 
     return data
 
+def do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs):
+    '''computes the gradients of u and v'''
+    var = {
+        'vars'      :['U_hat', 'V_hat'],
+        'vector'      :['U_hat', 'V_hat']
+        }
+    # prepare mutiprocessing in here.
+        # do circ_dist_avg in seperate step.
+        # data[var], grid_nfo, gradient_nfo['coords', 'member_idx']
+    chunks_vec = []
+    for i in range(grid_nfo['ncells']):
+        chunk = []
+        for j in range(4):
+            # construct member array (len(vars))
+
+            # construct radius array
+
+            # construct coordinate array with center coordinate at pos -1
+
+        chunks_vec.append(chunk)
+
+
+    chunks = pool.map(circ_dist_avg_vec, chunks_vec)
+    # needed is: neighs from circ_dist_avg
+    # area from grid_nfo
+
+
+
+
 def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
     '''computes the gradients of u and v'''
     var = {
         'vars'      :['U_hat', 'V_hat'],
         'vector'      :['U_hat', 'V_hat']
         }
+    # prepare mutiprocessing in here.
+        # do circ_dist_avg in seperate step.
+        # needed is: data[vars], vector information ??,
+        # => create vector circ_dist_avg and scalar circ_dist_avg.
+    # needed is: neighs from circ_dist_avg
+    # area from grid_nfo
+
+
     data = mo.gradient(data, grid_nfo, gradient_nfo, var)
 
     print('mean velocity gradient u_x: {}').format(np.mean(data['gradient'][0,0]))
