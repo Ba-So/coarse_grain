@@ -122,3 +122,49 @@ def dist_avg(members, radii, cell_area):
         sum[j]    = np.divide(sum[j],factor)
 
     return sum
+
+def compute_dyads_mp(values, grid_nfo, i_cell, vars):
+    '''computes the dyadic products of v'''
+    if not(all(key in values for key in ['RHO'])):
+        sys.exit('ERROR: compute_dyads, "RHO" missing in values')
+    if not(all(key in grid_nfo for key in ['cell_area'])):
+        sys.exit('ERROR: compute_dyads, "cell_area" missing in grid_nfo')
+
+    # dimension of dyad
+    l_vec   = len(vars)
+
+    # in case of first call build output file
+    # output slot, outgoing info
+    dyad        = np.empty([
+        l_vec,
+        l_vec,
+        grid_nfo['ntim'],
+        grid_nfo['nlev']
+        ])
+  # the product of dyadic multiplication (probably term dyadic is misused here)
+    product = np.empty([
+            l_vec,
+            l_vec,
+            grid_nfo['area_num_hex'][i_cell],
+            grid_nfo['ntim'],
+            grid_nfo['nlev']
+            ])
+
+    product.fill(0)
+    # helper, containing the constituents for computation
+    constituents = []
+    for var in vars:
+        constituents.append(values[var])
+    constituents = np.array(constituents)
+    # helper as handle for avg_bar, values in it are multiplied and averaged over
+    product = np.einsum('iklm,jklm->ijklm', constituents, constituents)
+    # average over coarse_area
+    dyad = np.einsum(
+        'ijklm,k,klm->ijlm',
+        product,
+        values['cell_area'],
+        values['RHO']
+    )
+    dyad = np.divide(dyad, grid_nfo['coarse_area'][i_cell])
+
+    return dyad
