@@ -3,14 +3,29 @@
 import os
 import sys
 import glob
+import time
 import numpy as np
 import custom_io as cio
-import data_op as dop
+import data_op as do
+import data_op_p as dop
 import math_op as mo
+import math_op_p as mop
 import phys_op as po
 import xarray as xr
+from multiprocessing import Pool
 
 # the main file
+def count_time(t1=0):
+    if t1 == 0:
+        t1 = time.time()
+    elif t1 != 0:
+        t2 = time.time()
+        t1 = t2-t1
+        print('Time gone {}').format()
+    else:
+        print('Something went horribly wrong!')
+    return t1
+
 def user():
     '''User interfacce routine.
         returns experiment name and area to be averaged over.'''
@@ -117,33 +132,81 @@ def do_the_average(data, grid_nfo, kwargs):
     return data
 
 def do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs):
+    # prepare mutiprocessing in here.
+    print('    ------------- ')
+    print('    preparing multiprocessing: neighbours')
     '''computes the gradients of u and v'''
     var = {
         'vars'      :['U_hat', 'V_hat'],
         'vector'      :['U_hat', 'V_hat']
         }
-    # prepare mutiprocessing in here.
-        # do circ_dist_avg in seperate step.
-        # data[var], grid_nfo, gradient_nfo['coords', 'member_idx']
+    # do circ_dist_avg in seperate step.
+    # data[var], grid_nfo, gradient_nfo['coords', 'member_idx']
+    num_proc = 30
+    chunks_vec = []
+    for i in range(grid_nfo['ncells']):
+        # variable specific information
+        chunk = []
+        for j,x in enumerate(var['vars']):
+            chunk.append([])
+            for k in range(4):
+                # construct member array (len(vars))
+                helper = data[x][:, :, np.where(gradient_nfo['member_idx'][i][k] >-1 )[0]]
+                chunk[j].append(np.moveaxis(helper, -1, 0))
+        # preparation for general information
+        latlon = []
+        for k in range(4):
+            # coordinates of members (for turning)
+            latlon.append([
+                grid_nfo['lat'][np.where(gradient_nfo['member_idx'][i][k] > -1)[0]],
+                grid_nfo['lon'][np.where(gradient_nfo['member_idx'][i][k] > -1)[0]],
+                grid_nfo['cell_area'][np.where(gradient_nfo['member_idx'][i][k] > -1)[0]]
+            ])
+        # general information, always positioned at [-1]
+        chunk.append([
+            # distance of member from center (for distance weighted average)
+            gradient_nfo['member_rad'][i],
+            # center coordinate (for turning of vectors)
+            gradient_nfo['coords'][i],
+            # coordinates of members for turning
+            latlon
+        ])
+        chunks_vec.append(chunk)
+
+    print('    ------------- ')
+    print('    starting multiprocessing on {} processors').format(num_proc)
+    chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
+    pool = Pool(processes=num_proc)
+    chunks_out = pool.map(mop.circ_dist_avg_vec, chunks)
+    neighbours = dop.reorder(chunks_out)
+    print('    ------------- ')
+    print('    preparing multiprocessing: gradients')
+
     chunks_vec = []
     for i in range(grid_nfo['ncells']):
         chunk = []
-        for j in range(4):
-            # construct member array (len(vars))
-
-            # construct radius array
-
-            # construct coordinate array with center coordinate at pos -1
-
+        chunk.append(neighbours[i])
+        chunk.append([data[x][:, :, i] for j,x in enumerate(var['vars']) ])
+        chunk.append(grid_nfo['coarse_area'][i])
         chunks_vec.append(chunk)
 
+    chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
 
-    chunks = pool.map(circ_dist_avg_vec, chunks_vec)
-    # needed is: neighs from circ_dist_avg
-    # area from grid_nfo
+    print('    ------------- ')
+    print('    starting multiprocessing on {} processors').format(num_proc)
 
+    pool = Pool(processes=num_proc)
+    chunks_out = pool.map(mop.gradient_mp, chunks)
+    gradients = np.moveaxis(dop.reorder(chunks_out), 0, -1)
 
+    data['gradient'] = gradients
 
+    print('    ------------- ')
+    print('mean velocity gradient u_x: {}').format(np.mean(data['gradient'][0,0]))
+    print('mean velocity gradient u_y: {}').format(np.mean(data['gradient'][0,1]))
+    print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
+    print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
+    return data
 
 def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
     '''computes the gradients of u and v'''
@@ -165,6 +228,59 @@ def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
     print('mean velocity gradient u_y: {}').format(np.mean(data['gradient'][0,1]))
     print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
     print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
+    return data
+
+def do_the_dyads_mp(data, grid_nfo):
+    '''computes the dyadic product of uv and rho plus averaging'''
+    # check if everything is there
+    needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar']
+    if not all(need in data for need in needs):
+        this = [need for need in needs if need not in data]
+        sys.exit('ERROR: do_the_dyads I miss quantities to do the computing {}'.format(this))
+      # define kwargs for computation
+    kwargs = {
+        'vars'    : ['U', 'V', 'RHO'],
+        'UV'      : {'vars'   : ['U', 'V'],
+                     'kind'   : 'vec'
+                    },
+        'dyad'    : {'vars'   : ['U_f', 'V_f']
+                    }
+        }
+
+      #start cellwise iteration
+    doprint = 5000
+    if not('dyad' in data):
+        l_vec = len(kwargs['UV']['vars'])
+        # in case of first call build output file
+        # output slot, outgoing info
+        print('creating array values["dyad"]')
+        data['dyad']        = np.empty([
+            l_vec,
+            l_vec,
+            grid_nfo['ntim'],
+            grid_nfo['nlev'],
+            grid_nfo['ncells']
+            ])
+
+
+
+    for i in range(grid_nfo['ncells']):
+        if i == doprint:
+            print('cell {} of {}').format(i, grid_nfo['ncells'])
+            doprint = doprint + 5000
+        # get area members
+        values = do.get_members(grid_nfo, data, i, kwargs['vars'])
+        # add lat lon coordinates to values
+        values.update(do.get_members(grid_nfo, grid_nfo, i, ['lat', 'lon']))
+        # get individual areas
+        values.update(do.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
+        # get coarse values
+        for var in kwargs['vars'][:2]:
+            values[var+'_hat'] = data[var+'_hat'][:, :, i]
+        # compute fluctuations
+        values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
+        data['dyad'][:,:,:,:,i] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
+
     return data
 
 def do_the_dyads(data, grid_nfo):
@@ -204,11 +320,11 @@ def do_the_dyads(data, grid_nfo):
             print('cell {} of {}').format(i, grid_nfo['ncells'])
             doprint = doprint + 5000
         # get area members
-        values = dop.get_members(grid_nfo, data, i, kwargs['vars'])
+        values = do.get_members(grid_nfo, data, i, kwargs['vars'])
         # add lat lon coordinates to values
-        values.update(dop.get_members(grid_nfo, grid_nfo, i, ['lat', 'lon']))
+        values.update(do.get_members(grid_nfo, grid_nfo, i, ['lat', 'lon']))
         # get individual areas
-        values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
+        values.update(do.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
         # get coarse values
         for var in kwargs['vars'][:2]:
             values[var+'_hat'] = data[var+'_hat'][:, :, i]
@@ -228,7 +344,13 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     # compute gradient
     print('--------------')
     print('computing the gradients')
+    t1 = count_time()
+    data = do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs)
+    t1 = count_time(t1)
+    t2 = count_time()
     data = do_the_gradients(data, grid_nfo, gradient_nfo, kwargs)
+    t2 = count_time(t2)
+    print('Speedup: {}').format(t2-t1)
     # 'gradient' [necells, 0:1, 0:1, ntim, nlev]
     # 0:1 : d/dx d/dy; 0:1 : u, v
     # compute and average the dyads plus comute their primes
