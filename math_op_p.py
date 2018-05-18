@@ -7,102 +7,118 @@ import sys
 import xarray as xr
 import numpy as np
 import data_op as dop
+import math_op as mo
 
-def gradient(chunk):
+def gradient_mp(chunk):
+    # now what you get is:
+    # an array 40962/n_proc * [[4,2,21,26],[1]]
    # data, grid_nfo, gradient_nfo, var):
 
     re        = 6.37111*10**6
 
-    data['gradient']  = np.empty([
-        2, 2,
-        grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells']
-        ])
-    data['gradient'].fill(0)
+    ncells = len(chunk)
+    numvars, ntim, nlev = np.shape(chunk[0][0])[1:]
 
-    info_bnd = 5000
-    for i in range(grid_nfo['ncells']):
+
+    data_out  = np.empty([
+        ncells,
+        2, numvars,
+        ntim, nlev
+        ])
+    data_out.fill(0)
+
+    for i in range(ncells):
         # chekc for correct key
         # define distance
         # assume circle pi r^2 => d= 2*sqrt(A/pi)
-        if i == info_bnd:
-            print('progress: {} cells of {}').format(info_bnd, grid_nfo['ncells'])
-            info_bnd = info_bnd + 5000
 
-        # check for correct keys
-        neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
-        area    = grid_nfo['cell_area'][i]
-        d       = 2 * radius(area) * re
-        data['gradient'][0,0,:,:,i]   = central_diff(
-            neighs['U_hat'][0], data['U_hat'][:, :, i], neighs['U_hat'][1],
-            d
-            )
-        data['gradient'][0,1,:,:,i]  = central_diff(
-            neighs['V_hat'][0], data['V_hat'][:, :, i], neighs['V_hat'][1],
-            d
-            )
-        data['gradient'][1,0,:,:,i]   = central_diff(
-            neighs['U_hat'][2], data['U_hat'][:, :, i], neighs['U_hat'][3],
-            d
-            )
-        data['gradient'][1,1,:,:,i]   = central_diff(
-            neighs['V_hat'][2], data['V_hat'][:, :, i], neighs['V_hat'][3],
-            d
-            )
+
+        area    = chunk[i][2]
+        d       = 2 * mo.radius(area) * re
+        data = chunk[i][1]
+        neighs = chunk[i][0]
+
+        for var in range(numvars):
+            data_out[i, 0, var, :, :]   = mo.central_diff(
+                neighs[0, var], data[var], neighs[1, var],
+                d
+                )
+            data_out[i, 1, var, :, :]   = mo.central_diff(
+                neighs[2, var], data[var], neighs[3, var],
+                d
+                )
 
     # find/interpolate value at distance d in x/y direction
     #     -> use geodesics / x/y along longditudes/latitudes
     # turn values at distance (with rot_vec)
     # compute d/dz use fassinterpol x_i-1+2x_i+x_i+1/dx including grid value?
-    return data
+    return data_out
 
-def vector_circ_dist_avg():
+def circ_dist_avg_vec(chunks):
     # wrapper for circ_dist_avg in case of vector
+    out_values = []
+    for i, chunk in enumerate(chunks):
+        member_rad = chunk[-1][0]
+        coords = chunk[-1][1]
+        latlons = chunk[-1][2]
+        values = chunk[:-1]
 
-    return
+        out_values.append(circ_dist_avg(member_rad, coords, latlons, values))
 
-def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
-    values = {
-        name: np.empty(
-            [4,grid_nfo['ntim'],grid_nfo['nlev']])
-            for name in var['vars']}
-    for name in var['vars']:
-        values[name].fill(0)
-    #how large is check radius?
+    return np.array(out_values)
+
+def circ_dist_avg(member_rad_in, coords_in, latlons_in, values_in):
+    '''does its thing only in case of vector. not suited for scalars, for now'''
+
+    out_values = []
+
     for j in range(4):
-        coords = gradient_nfo['coords'][i_cell, j, :]
-        member_idx = gradient_nfo['member_idx'][i_cell][j]
-        member_rad = gradient_nfo['member_rad'][i_cell][j]
-    # compute distance weighted average of area weighted members:
-        members    = dop.get_members_idx(data, member_idx, var['vars'])
-        # if you suffer from boredom: This setup gives a lot of flexebility.
-        #     may be transferred to other parts of this program.
-        if 'vector' in var.iterkeys():
+
+        coords = coords_in[j]
+        member_rad = member_rad_in[j]
+        members = []
+        for x, member in enumerate(values_in):
+            members.append(member[j])
             #turn vectors
-            lats = np.array([grid_nfo['lat'][i] for i in member_idx])
-            lons = np.array([grid_nfo['lon'][i] for i in member_idx])
-            vec   = var['vector']
-            rot_vec = np.empty([
-                len(vec),
-                len(member_idx),
-                grid_nfo['ntim'],
-                grid_nfo['nlev']])
-            rot_vec.fill(0)
-            plon, plat = get_polar(coords[0], coords[1])
-            rot_vec[:,:,:,:]  =  rotate_members_to_local(
-                lons, lats, plon, plat,
-                members[vec[0]][:,:,:], members[vec[1]][:,:,:])
-            members[vec[0]]   = rot_vec[0,:,:,:]
-            members[vec[1]]   = rot_vec[1,:,:,:]
-        helper         = dist_avg(members, member_idx, member_rad, grid_nfo, var['vars'])
-        if 'vector' in var.iterkeys():
-            rot_vec =rotate_single_to_global(
-                coords[0], coords[1],
-                helper[vec[0]][:,:], helper[vec[1]][:,:])
-            helper[vec[0]]   = rot_vec[0]
-            helper[vec[1]]   = rot_vec[1]
+        lats = latlons_in[j][0]
+        lons = latlons_in[j][1]
+        cell_area = latlons_in[j][2]
+        plon, plat = mo.get_polar(coords[0], coords[1])
+        rot_vec  =  mo.rotate_members_to_local(
+            lons, lats, plon, plat,
+            members[0][:,:,:], members[1][:,:,:])
+        members[0]   = rot_vec[0]
+        members[1]   = rot_vec[1]
+            # compute average
+        helper         = dist_avg(members, cell_area, member_rad)
+            # turn vectors back
+        rot_vec = mo.rotate_single_to_global(
+            coords[0], coords[1],
+            helper[0][:,:], helper[1][:,:])
+        helper[0]   = rot_vec[0]
+        helper[1]   = rot_vec[1]
 
-        for name in var['vars']:
-            values[name][j]   = helper[name]
+        out_values.append(helper)
 
-    return values
+    return out_values
 
+
+def dist_avg(members, radii, cell_area):
+    len_i  = len(radii)
+    # define weights.
+    weight = np.empty([len(radii)])
+    weight.fill(0)
+    factor = 0
+    for i in range(len_i):
+        weight[i] = cell_area[i] * radii[i]
+        factor    = factor + weight[i]
+    # compute distance averages.
+    sum    = []
+    for j,member in enumerate(members):
+        sum.append(np.empty(member[0].shape))
+        sum[j].fill(0)
+        for i in range(len_i):
+            sum[j]    = np.add(sum[j], np.multiply(member[i],weight[i]))
+        sum[j]    = np.divide(sum[j],factor)
+
+    return sum
