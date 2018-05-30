@@ -19,7 +19,6 @@ def gradient_mp(chunk):
     ncells = len(chunk)
     numvars, ntim, nlev = np.shape(chunk[0][0])[1:]
 
-
     data_out  = np.empty([
         ncells,
         2, numvars,

@@ -173,7 +173,13 @@ def do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs):
             # coordinates of members for turning
             latlon
         ])
-        chunks_vec.append(chunk)
+        chunks_vec.append([chunk, [
+           [data[x][:, :, i] for j,x in enumerate(var['vars'])],
+           grid_nfo['coarse_area'][i]]
+        ])
+
+    print(chunks_vec[0])
+    # I don't know why, but this doesn't function...
     t2 = count_time()
     print(t2-t1)
 
@@ -181,36 +187,42 @@ def do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs):
     print('    ------------- ')
     print('    starting multiprocessing on {} processors').format(num_proc)
     chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
-    pool = Pool(processes=num_proc)
-    chunks_out = pool.map_async(mop.circ_dist_avg_vec, chunks).get()
-    neighbours = dop.reorder(chunks_out)
-    t2 = count_time()
+    #pool = Pool(processes=num_proc)
+    #chunks_out = pool.map(neighs_and_grad, chunks)
+    chunks_out = neighs_and_grad(chunks[0])
+    #gradients = np.moveaxis(dop.reorder(chunks_out), 0, -1)
+    #chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
+    #pool = Pool(processes=num_proc)
+    #chunks_out = pool.map_async(mop.circ_dist_avg_vec, chunks).get()
+    #neighbours = dop.reorder(chunks_out)
+    #t2 = count_time()
     print(t2-t1)
-    print('    ------------- ')
-    print('    preparing multiprocessing: gradients')
+    #print('    ------------- ')
+    #print('    preparing multiprocessing: gradients')
 
-    t1 = count_time()
-    chunks_vec = []
-    for i in range(grid_nfo['ncells']):
-        chunk = []
-        chunk.append(neighbours[i])
-        chunk.append([data[x][:, :, i] for j,x in enumerate(var['vars']) ])
-        chunk.append(grid_nfo['coarse_area'][i])
-        chunks_vec.append(chunk)
+    #t1 = count_time()
+    #chunks_vec = []
+    #for i in range(grid_nfo['ncells']):
+    #    chunk = []
+    #    chunk.append(neighbours[i])
+    #    chunk.append([data[x][:, :, i] for j,x in enumerate(var['vars']) ])
+    #    chunk.append(grid_nfo['coarse_area'][i])
+    #    chunks_vec.append(chunk)
 
-    chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
+    #chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
 
-    t2 = count_time()
-    print(t2-t1)
-    print('    ------------- ')
-    print('    starting multiprocessing on {} processors').format(num_proc)
+    #t2 = count_time()
+    #print(t2-t1)
+    #print('    ------------- ')
+    #print('    starting multiprocessing on {} processors').format(num_proc)
 
-    t1 = count_time()
-    chunks_vec = []
-    pool = Pool(processes=num_proc)
-    chunks_out = pool.map_async(mop.gradient_mp, chunks).get()
-    gradients = np.moveaxis(dop.reorder(chunks_out), 0, -1)
-    t2 = count_time()
+    #t1 = count_time()
+    #chunks_vec = []
+    #pool = Pool(processes=num_proc)
+    #chunks_out = pool.map_async(mop.gradient_mp, chunks).get()
+    #gradients = np.moveaxis(dop.reorder(chunks_out), 0, -1)
+    #t2 = count_time()
+    #print(t2-t1)
 
     data['gradient'] = gradients
 
@@ -220,6 +232,14 @@ def do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs):
     print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
     print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
     return data
+
+def neighs_and_grad(chunk):
+
+    neighs_chunk = mop.circ_dist_avg_vec(chunk[0])
+    neighs_chunk.append(chunk[1])
+    chunk = mop.gradient_mp(neighs_chunk)
+
+    return chunk
 
 def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
     '''computes the gradients of u and v'''
@@ -407,6 +427,41 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T_bar'])
     return data
 
+def prepare_mp(data, grid_nfo, gradient_nfo, kwargs):
+    mp_array = []
+    mp_sub_dict = {
+        'data' : {},  # muss gesplittet werden
+        'grid_nfo' : {},  # muss gesplittet werden
+        'gradient_nfo' : {}, # muss gesplittet werden
+        'kwargs' : {} # kwargs ist immer gleich für alle procs
+    }
+
+    data_sets = {
+        'data' : data,
+        'grid_nfo' : grid_nfo,
+        'gradient_nfo' : gradient_nfo
+    }
+    num_procs = kwargs['mp']['num_procs']
+
+    for i in range(num_procs):
+        for name, data_set in data_sets.iteritems():
+            for key, item in data_set.iteritems():
+                index_ncells = data_set[key].shape.index(grid_nfo['ncells'])
+                num_dims = len(data_set[key].shape)
+                if index_ncells == 0:
+                    mp_sub_dict['name']['key'] = np.array([data_set[key][i::num_proc,]])
+                elif index_ncells == 2:
+                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, i::num_proc,]])
+                elif index_ncells == 3:
+                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, :, i::num_proc,]])
+                elif index_ncells == 4:
+                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, :, :, i::num_proc,]])
+                elif index_ncells == 5:
+                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, :, :, :, i::num_proc,]])
+        mp_sub_dict['kwargs'] = kwargs
+        mp_array.append(mp_sub_dict)
+    return mp_array
+
 if __name__ == '__main__':
    # kwargs = user()
     kwargs = {
@@ -439,6 +494,10 @@ if __name__ == '__main__':
         'coords' : grid['coords'].values,
         'member_idx' : grid['member_idx'].values,
         'member_rad' : grid['member_rad'].values
+    }
+    kwargs['mp'] = {
+        'switch' : True,
+        'num_procs' : 20
     }
 
     if kwargs['num_files'] > len(kwargs['files']):
