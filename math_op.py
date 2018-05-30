@@ -292,7 +292,7 @@ def gradient(data, grid_nfo, gradient_nfo, var):
 
         # check for correct keys
         neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
-        area    = grid_nfo['cell_area'][i]
+        area    = grid_nfo['coarse_area'][i]
         d       = 2 * radius(area) * re
         data['gradient'][0,0,:,:,i]   = central_diff(
             neighs['U_hat'][0], data['U_hat'][:, :, i], neighs['U_hat'][1],
@@ -425,6 +425,7 @@ def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
     for j in range(4):
         coords = gradient_nfo['coords'][i_cell, j, :]
         member_idx = gradient_nfo['member_idx'][i_cell][j]
+        member_idx = np.where(member_idx > -1)[0]
         member_rad = gradient_nfo['member_rad'][i_cell][j]
     # compute distance weighted average of area weighted members:
         members    = dop.get_members_idx(data, member_idx, var['vars'])
