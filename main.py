@@ -382,16 +382,16 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     # compute gradient
     print('--------------')
     print('computing the gradients')
-    t1 = count_time()
-    print(time.time())
-    data = do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs)
-    t1 = count_time(t1)
+   # t1 = count_time()
+   # print(time.time())
+   # data = do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs)
+   # t1 = count_time(t1)
     t2 = count_time()
     print(time.time())
     data = do_the_gradients(data, grid_nfo, gradient_nfo, kwargs)
     t2 = count_time(t2)
     print(time.time())
-    print('Speedup: {}').format(t2-t1)
+   # print('Speedup: {}').format(t2-t1)
     # 'gradient' [necells, 0:1, 0:1, ntim, nlev]
     # 0:1 : d/dx d/dy; 0:1 : u, v
     # compute and average the dyads plus comute their primes
