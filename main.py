@@ -247,13 +247,6 @@ def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
         'vars'      :['U_hat', 'V_hat'],
         'vector'      :['U_hat', 'V_hat']
         }
-    # prepare mutiprocessing in here.
-        # do circ_dist_avg in seperate step.
-        # needed is: data[vars], vector information ??,
-        # => create vector circ_dist_avg and scalar circ_dist_avg.
-    # needed is: neighs from circ_dist_avg
-    # area from grid_nfo
-
 
     data = mo.gradient(data, grid_nfo, gradient_nfo, var)
 
@@ -323,6 +316,7 @@ def do_the_dyads_mp(data, grid_nfo):
     data['dyad'][:,:,:,:,i] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
 
     return data
+
 def dyads_parallel(chunk):
 
     return chunk
