@@ -4,6 +4,7 @@ import xarray as xr
 import numpy as np
 import data_op as dop
 
+# changed into new array structure
 def coarse_area(grid):
     '''Sums the coarse_area from the areas of its members'''
     co_ar = np.array([0.0 for i in range(0, grid.dims['ncells'])])
@@ -13,7 +14,7 @@ def coarse_area(grid):
 
     for i in range(0, grid.dims['ncells']):
         for j in range(0, a_num_hex[i]):
-            ij = a_nei_idx[j, i]
+            ij = a_nei_idx[i, j]
             co_ar[i] += cell_a[ij]
 
     coarse_a = xr.DataArray(
@@ -24,6 +25,7 @@ def coarse_area(grid):
 
     return grid
 
+# changing data structure in area_avg
 def area_avg(kind, grid_nfo, data, var, vec=False):
     '''computes the bar average over all vars (multiplied)'''
     name = []
@@ -101,6 +103,8 @@ def area_avg(kind, grid_nfo, data, var, vec=False):
 
 # call functions for area_avg
 # -----
+# changed according to new array structure - check
+# (nothing to do)
 def avg_bar(values, factor, i_cell):
     # multiply var area values (weighting)
     values =  mult(values)
@@ -109,16 +113,19 @@ def avg_bar(values, factor, i_cell):
 
     return values/factor[i_cell]
 
+# changed according to new array structure - check
 def avg_hat(values, factor, i_cell, ntim, nlev):
     # multiply var area values (weighting)
     values =  mult(values)
-    # Sum Rho*var(i) up
+
     values =  np.sum(values,0)
-    values = np.divide(values, factor[:, :, i_cell])
+    values = np.divide(values, factor[i_cell, :, :])
 
     return values
     # -----
 
+# changed according to new array structure - check
+# (nothing to do)
 def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
     # from here on we stay in local_coordinates. Only revert back after all the
     # operations have been performed.
@@ -157,6 +164,8 @@ def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
         helper[0, :, :], helper[1, :, :])
     return helper
 
+# changed according to new array structure - check
+# (nothing to do)
 def compute_flucts(values, grid_dic, num_hex, vars, kind):
     '''computes the fluctuations relative to the hat quantities.'''
 
@@ -179,6 +188,8 @@ def compute_flucts(values, grid_dic, num_hex, vars, kind):
 
     return values
 
+# changed according to new array structure - check
+# (nothing to do)
 def scalar_flucts(values, grid_dic, num_hex, vars):
 
     result    = np.empty([num_hex, grid_dic['ntim'], grid_dic['nlev']])
@@ -194,6 +205,8 @@ def scalar_flucts(values, grid_dic, num_hex, vars):
 
     return values
 
+# changed according to new array structure - check
+# (nothing to do)
 def vector_flucts(values, grid_dic, num_hex, vars):
     rot_vec = np.empty([len(vars),num_hex, grid_dic['ntim'], grid_dic['nlev']])
     rot_vec.fill(0)
@@ -225,6 +238,7 @@ def vector_flucts(values, grid_dic, num_hex, vars):
 
     return values
 
+# changed according to new array structure - check
 def compute_dyads(values, grid_nfo, i_cell, vars):
     '''computes the dyadic products of v'''
     if not(all(key in values for key in ['RHO'])):
@@ -238,18 +252,18 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
     # in case of first call build output file
     # output slot, outgoing info
     dyad        = np.empty([
-        l_vec,
-        l_vec,
         grid_nfo['ntim'],
-        grid_nfo['nlev']
+        grid_nfo['nlev'],
+        l_vec,
+        l_vec
         ])
   # the product of dyadic multiplication (probably term dyadic is misused here)
     product = np.empty([
-            l_vec,
-            l_vec,
             grid_nfo['area_num_hex'][i_cell],
             grid_nfo['ntim'],
-            grid_nfo['nlev']
+            grid_nfo['nlev'],
+            l_vec,
+            l_vec
             ])
 
     product.fill(0)
@@ -259,10 +273,10 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
         constituents.append(values[var])
     constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
-    product = np.einsum('iklm,jklm->ijklm', constituents, constituents)
+    product = np.einsum('lmik,lmjk->lmijk', constituents, constituents)
     # average over coarse_area
     dyad = np.einsum(
-        'ijklm,k,klm->ijlm',
+        'lmijk,k,lmk->lmij',
         product,
         values['cell_area'],
         values['RHO']
@@ -271,16 +285,17 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
 
     return dyad
 
+# changed according to new array structure
 def gradient(data, grid_nfo, gradient_nfo, var):
 
     re        = 6.37111*10**6
-
+    l_vec = len(var['vars'])
     data['gradient']  = np.empty([
-        2, 2,
-        grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells']
+        grid_nfo['ncells'],
+        grid_nfo['ntim'], grid_nfo['nlev'],
+        l_vec, l_vec
         ])
     data['gradient'].fill(0)
-
     info_bnd = 5000
     for i in range(grid_nfo['ncells']):
         # chekc for correct key
@@ -290,33 +305,32 @@ def gradient(data, grid_nfo, gradient_nfo, var):
             print('progress: {} cells of {}').format(info_bnd, grid_nfo['ncells'])
             info_bnd = info_bnd + 5000
 
+# rework for flexible length of array. Currently only horizontal gradients.
         # check for correct keys
         neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
         area    = grid_nfo['coarse_area'][i]
         d       = 2 * radius(area) * re
-        data['gradient'][0,0,:,:,i]   = central_diff(
-            neighs['U_hat'][0], data['U_hat'][:, :, i], neighs['U_hat'][1],
+        data['gradient'][i, :, :, 0, 0]   = central_diff(
+            neighs['U_hat'][0], data['U_hat'][i, :, :], neighs['U_hat'][1],
             d
             )
-        data['gradient'][0,1,:,:,i]  = central_diff(
-            neighs['V_hat'][0], data['V_hat'][:, :, i], neighs['V_hat'][1],
+        data['gradient'][i, :, :, 0, 1]  = central_diff(
+            neighs['V_hat'][0], data['V_hat'][i, :, :], neighs['V_hat'][1],
             d
             )
-        data['gradient'][1,0,:,:,i]   = central_diff(
-            neighs['U_hat'][2], data['U_hat'][:, :, i], neighs['U_hat'][3],
+        data['gradient'][i, :, :, 1, 0]   = central_diff(
+            neighs['U_hat'][2], data['U_hat'][i, :, :], neighs['U_hat'][3],
             d
             )
-        data['gradient'][1,1,:,:,i]   = central_diff(
-            neighs['V_hat'][2], data['V_hat'][:, :, i], neighs['V_hat'][3],
+        data['gradient'][i, :, :, 1, 1]   = central_diff(
+            neighs['V_hat'][2], data['V_hat'][i, :, :], neighs['V_hat'][3],
             d
             )
 
-    # find/interpolate value at distance d in x/y direction
-    #     -> use geodesics / x/y along longditudes/latitudes
-    # turn values at distance (with rot_vec)
-    # compute d/dz use fassinterpol x_i-1+2x_i+x_i+1/dx including grid value?
     return data
 
+# changed according to new array structure
+# (nothing to do)
 def central_diff(xl, x, xr, d):
         # no turning necessary here since gradients are along lats / longs
 
@@ -324,6 +338,8 @@ def central_diff(xl, x, xr, d):
 
         #return (xl-xr)/(2*d)
 
+# changed according to new array structure
+# (nothing to do)
 def radius(area):
     '''returns radius of circle on sphere in radians'''
     re        = 6.37111*10**6
@@ -413,19 +429,19 @@ def gradient_coordinates(lonlat, area):
         ])
     return coords
 
-
+# changed according to new array structure - check
 def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
     values = {
         name: np.empty(
-            [4,grid_nfo['ntim'],grid_nfo['nlev']])
+            [grid_nfo['ntim'], grid_nfo['nlev'], 4])
             for name in var['vars']}
     for name in var['vars']:
         values[name].fill(0)
     #how large is check radius?
     for j in range(4):
-        coords = gradient_nfo['coords'][i_cell, j, :]
+        coords = gradient_nfo['coords'][i_cell, :, j]
         member_idx = gradient_nfo['member_idx'][i_cell][j]
-        member_idx = np.where(member_idx > -1)[0]
+        member_idx = member_idx(np.where(member_idx > -1)[0])
         member_rad = gradient_nfo['member_rad'][i_cell][j]
     # compute distance weighted average of area weighted members:
         members    = dop.get_members_idx(data, member_idx, var['vars'])
@@ -461,6 +477,8 @@ def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
 
     return values
 
+# changed according to new array structure
+# (nothing to do)
 def dist_avg(members, idxcs, radii, grid_nfo, vars):
     len_i  = len(idxcs)
     # define weights.
@@ -479,6 +497,8 @@ def dist_avg(members, idxcs, radii, grid_nfo, vars):
 
     return sum
 
+# changed according to new array structure
+# (nothing to do)
 def arc_len(p_x, p_y):
     '''computes length of geodesic arc on a sphere (in rad)'''
     r = np.arccos(
@@ -487,6 +507,8 @@ def arc_len(p_x, p_y):
        )
     return r
 
+# changed according to new array structure
+# (nothing to do)
 def turn_spherical(lonlat, grid_nfo):
     lons  = grid_nfo['lon']
     lats  = grid_nfo['lat']
@@ -514,6 +536,8 @@ def turn_spherical(lonlat, grid_nfo):
 
     return n_lons, n_lats
 
+# changed according to new array structure - check
+# (nothing to do)
 def mult(dataset):
     dims= np.array([])
     for val in dataset.itervalues():
@@ -582,6 +606,8 @@ def mult(dataset):
 # u_g= u* cos_d +v*sin_d
 # v_g=-u* sin_d +v*cos_d
 # Where the subscript _g defines the geographic grid.
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_ca_members_to_local(lon, lat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -599,6 +625,8 @@ def rotate_ca_members_to_local(lon, lat, x, y):
                 )
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_members_to_local(lon, lat, plon, plat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -615,6 +643,8 @@ def rotate_members_to_local(lon, lat, plon, plat, x, y):
                 )
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_single_to_local(lon, lat, x, y):
     # shouldn't be neccessary. The entropy production value should remain the same
     # independent rotation back should therefore not be neccessary and additional
@@ -627,6 +657,8 @@ def rotate_single_to_local(lon, lat, x, y):
         x, y)
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_ca_members_to_global(lon, lat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -643,6 +675,8 @@ def rotate_ca_members_to_global(lon, lat, x, y):
                 x[i,:,:], y[i,:,:])
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_members_to_global(lon, lat, plon, plat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -659,6 +693,8 @@ def rotate_members_to_global(lon, lat, plon, plat, x, y):
     return x_tnd, y_tnd
 
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_single_to_global(lon, lat, x, y):
     # shouldn't be neccessary. The entropy production value should remain the same
     # independent rotation back should therefore not be neccessary and additional
@@ -671,6 +707,8 @@ def rotate_single_to_global(lon, lat, x, y):
         x, y)
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def get_polar(lon, lat):
     plon   = 0.0
     if 0 < lon <= np.pi:
@@ -691,6 +729,8 @@ def get_polar(lon, lat):
     return plon, plat
 
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_vec_to_local(plon, plat, lon, lat, x,y):
     ''' rotates vectors using rotat_latlon_vec'''
     x_tnd= np.empty(x.shape)
@@ -705,6 +745,8 @@ def rotate_vec_to_local(plon, plat, lon, lat, x,y):
 
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_vec_to_global(plon, plat, lon, lat, x,y):
     ''' rotates vectors using rotate_latlon_vec'''
     x_tnd= np.empty(x.shape)
@@ -719,6 +761,8 @@ def rotate_vec_to_global(plon, plat, lon, lat, x,y):
 
     return x_tnd, y_tnd
 
+# changed according to new array structure - check
+# (nothing to do)
 def rotate_latlon_vec(lon, lat, plon, plat):
     '''gives entries of rotation matrix for vector rotation
         see Documentation of COSMOS pp. 27'''

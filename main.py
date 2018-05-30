@@ -79,6 +79,7 @@ def read_data(kwargs, i):
     func = lambda ds, quarks: cio.extract_variables(ds, **quarks)
     return cio.read_netcdfs([kwargs['files'][i]], 'time', quarks, func)
 
+# changed according to new array structure
 def do_the_average(data, grid_nfo, kwargs):
     '''computes the u and v hat values'''
     # fairly simple
@@ -241,6 +242,7 @@ def neighs_and_grad(chunk):
 
     return chunk
 
+# changed according to new array structure
 def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
     '''computes the gradients of u and v'''
     var = {
@@ -321,6 +323,7 @@ def dyads_parallel(chunk):
 
     return chunk
 
+# changed according to new array structure - check
 def do_the_dyads(data, grid_nfo):
     '''computes the dyadic product of uv and rho plus averaging'''
     # check if everything is there
@@ -346,11 +349,11 @@ def do_the_dyads(data, grid_nfo):
         # output slot, outgoing info
         print('creating array values["dyad"]')
         data['dyad']        = np.empty([
-            l_vec,
-            l_vec,
+            grid_nfo['ncells'],
             grid_nfo['ntim'],
             grid_nfo['nlev'],
-            grid_nfo['ncells']
+            l_vec,
+            l_vec
             ])
 
     for i in range(grid_nfo['ncells']):
@@ -365,13 +368,14 @@ def do_the_dyads(data, grid_nfo):
         values.update(do.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
         # get coarse values
         for var in kwargs['vars'][:2]:
-            values[var+'_hat'] = data[var+'_hat'][:, :, i]
+            values[var+'_hat'] = data[var+'_hat'][i, :, :]
         # compute fluctuations
         values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
-        data['dyad'][:,:,:,:,i] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
+        data['dyad'][i, :, :, :, :] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
 
     return data
 
+# changed according to new array structure - check
 def perform(data, grid_nfo, gradient_nfo, kwargs):
     '''performs the compuations neccessary'''
     # compute u and v hat and bar
@@ -382,34 +386,32 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     # compute gradient
     print('--------------')
     print('computing the gradients')
-   # t1 = count_time()
-   # print(time.time())
-   # data = do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs)
-   # t1 = count_time(t1)
     t2 = count_time()
     print(time.time())
     data = do_the_gradients(data, grid_nfo, gradient_nfo, kwargs)
     t2 = count_time(t2)
     print(time.time())
    # print('Speedup: {}').format(t2-t1)
-    # 'gradient' [necells, 0:1, 0:1, ntim, nlev]
+    # 'gradient' [ncells, 0:1, 0:1, ntim, nlev]
     # 0:1 : d/dx d/dy; 0:1 : u, v
     # compute and average the dyads plus comute their primes
     print('--------------')
     print('computing the dyads')
     data = do_the_dyads(data, grid_nfo)
-    # 'dyad' [0:1,0:1, ntim, nlev, ncells]
+    # 'dyad' [ncells, ntim, nlev, 0:1, 0:1]
     for key in data.iterkeys():
         print key
     print('--------------')
     print('computing the turbulent friction')
-    data['turb_fric'] = np.empty([grid_nfo['ntim'],
-                                 grid_nfo['nlev'],
-                                 grid_nfo['ncells']])
+    data['turb_fric'] = np.empty([
+        grid_nfo['ncells'],
+        grid_nfo['ntim'],
+        grid_nfo['nlev']
+    ])
     data['turb_fric'].fill(0.0)
     doprint = 0
 
-    data['turb_fric'] = np.einsum('ijklm,ijklm->klm', data['dyad'], data['gradient'])
+    data['turb_fric'] = np.einsum('klmij,klmij->klm', data['dyad'], data['gradient'])
     #equivalent to:
     #for i in range(2):
     #    for j in range(2):
@@ -484,6 +486,9 @@ if __name__ == '__main__':
         'cell_area'           : grid['cell_area'].values,
         'i_cell'              : 0
         }
+    for var in grid_nfo.iterkeys():
+        grid_nfo[var] = np.moveaxis(grid_nfo[var], -1, 0)
+
     gradient_nfo = {
         'coords' : grid['coords'].values,
         'member_idx' : grid['member_idx'].values,
@@ -510,16 +515,22 @@ if __name__ == '__main__':
             'lon'                 : data['clon'].values
             })
         data_run = {}
+
+        # extract variable numpy arrays from xarray dataset, and move last axis
+        # to first position, (ncells to first)
         for var in kwargs['variables']:
-            data_run[var] = data[var].values
+            data_run[var] = np.moveaxis(data[var].values, -1, 0)
         #compute Temperature T for computation
         data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
 
         data_run.pop('EXNER')
         data_run.pop('THETA_V')
 
-        # critcally wrong still:
         data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
+
+        # move cells axis back to original position.
+        for var in data_run.iterkeys():
+            data_run[var] = np.moveaxis(data_run[var], 0, -1)
 
         print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
         print('globally averaged entropy production rate: {}').format(np.mean(data_run['turb_fric']))

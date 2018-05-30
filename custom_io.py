@@ -91,6 +91,7 @@ def read_grid(ds, path, num_rings):
   print '--------------'
   print 'writing file as {}_refined_{}.nc'.format(path[:-3],num_rings)
   write_netcdf(path[:-3] + '_refined_{}.nc'.format(num_rings), grid)
+
   return grid
 
 def write_netcdf(path, ds):

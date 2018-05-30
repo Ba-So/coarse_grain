@@ -46,10 +46,9 @@ def define_hex_area(grid, num_rings):
 
   num_hex   = 1+6*num_rings*(num_rings+1)/2
 
-  a_nei_idx = np.array(
-                [[-1 for i in range(0,grid.dims['ncells'])]
-                for j in range(0, num_hex)]
-                )
+  a_nei_idx = np.empty([num_hex, grid_dims['ncells']])
+  a_nei_idx.fill(-1) # for masking
+
   num_hex   = np.array([num_hex for i in range(0,grid.dims['ncells'])])
   num_edg   = grid['num_edges'].values
   c_nei_idx = grid['cell_neighbor_idx'].values
@@ -102,43 +101,43 @@ def define_hex_area(grid, num_rings):
 
   return grid
 
+# changed according to new array structure - check
 def get_members(grid_nfo, data, i, variables):
   '''gets members of a hex_area'''
   # functional and used.
   num_hex   = grid_nfo['area_num_hex'][i]
-  a_nei_idx = grid_nfo['area_neighbor_idx'][:,i]
+  a_nei_idx = grid_nfo['area_neighbor_idx'][i,:]
   out       = {}
+  idxcs     = a_nei_idx[np.where(a_nei_idx[:num_hex]>-1)[0],]
 
-  for var in variables:
-      if data[var].ndim == 3:
-          out[var] = data[var][:, :, np.where(a_nei_idx[:num_hex]>-1)[0]]
-      if data[var].ndim == 2:
-          out[var] = data[var][:, np.where(a_nei_idx[:num_hex]>-1)[0]]
-        #  out[var] = np.array([data[var][:,j] for j in a_nei_idx[:num_hex]])
-      if data[var].ndim == 1:
-          out[var] = data[var][np.where(a_nei_idx[:num_hex]>-1)[0]]
-        #  out[var] = np.array([data[var][j] for j in a_nei_idx[:num_hex]])
-      out[var] = np.moveaxis(out[var], -1, 0)
+  out = get_members_idx(data, idxcs, variables)
 
   return out
 
+# changed according to new array structure - check
 def get_members_idx(data, idxcs, variables):
     '''gets members of a hex_area'''
     # functional and used.
     out       = {}
 
-    for var in variables:
-        if data[var].ndim == 3:
-            out[var] = data[var][:, :, np.where(idxcs>-1)[0]]
-        #    out[var] = np.array([data[var][:, :, j] for j in idxcs])
-        if data[var].ndim == 2:
-            out[var] = data[var][:, np.where(idxcs>-1)[0]]
-        #    out[var] = np.array([data[var][:, j] for j in idxcs])
-        if data[var].ndim == 1:
-            out[var] = data[var][np.where(idxcs>-1)[0]]
-        #    out[var] = np.array([data[var][j] for j in idxcs])
+    idxcs = idxcs[np.where(idxcs>-1)[0],]
 
-        out[var] = np.moveaxis(out[var], -1, 0)
+    for var in variables:
+        out[var] = data[var][idxcs,]
+    # why this?
+    #   out[var] = np.moveaxis(out[var], -1, 0)
+
+  #  for var in variables:
+  #      if data[var].ndim == 3:
+  #          out[var] = data[var][:, :, np.where(idxcs>-1)[0]]
+  #      #    out[var] = np.array([data[var][:, :, j] for j in idxcs])
+  #      if data[var].ndim == 2:
+  #          out[var] = data[var][:, np.where(idxcs>-1)[0]]
+  #      #    out[var] = np.array([data[var][:, j] for j in idxcs])
+  #      if data[var].ndim == 1:
+  #          out[var] = data[var][np.where(idxcs>-1)[0]]
+  #      #    out[var] = np.array([data[var][j] for j in idxcs])
+  #      out[var] = np.moveaxis(out[var], -1, 0)
 
     return out
 
