@@ -85,7 +85,7 @@ def area_avg(kind, grid_nfo, data, var, vec=False):
             'kwargs'   : kwargs
             }
         func = lambda val, fac, kwargs: avg_vec(val, fac, **kwargs)
-    dims = [len_vec, grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells']]
+    dims = [grid_nfo['ncells'], len_vec, grid_nfo['ntim'], grid_nfo['nlev']]
     stack = np.empty(dims, order='F')
 
     #create kwargs for get_members:
@@ -95,10 +95,10 @@ def area_avg(kind, grid_nfo, data, var, vec=False):
         # divide by factor (area or rho_bar)
         kwargs['i_cell'] = i
         values = func(values, factor, kwargs)
-        stack[:,:,:,i] = values
+        stack[i, :, :, :] = values
     # put into xArray
     for i in range(len_vec):
-        data[name[i]] = stack[i,:,:,:]
+        data[name[i]] = stack[:, i, :, :]
     return data
 
 # call functions for area_avg
@@ -110,6 +110,7 @@ def avg_bar(values, factor, i_cell):
     values =  mult(values)
     # Sum Rho*var(i) up
     values =  np.sum(values,0)
+
 
     return values/factor[i_cell]
 
@@ -155,13 +156,14 @@ def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
         values_vec[j].update(help_dic)
 
   # computing averages
-    helper = np.empty([len(vec),grid_nfo['ntim'],grid_nfo['nlev']])
+    helper = np.empty([len(vec), grid_nfo['ntim'],grid_nfo['nlev']])
     for j, item  in enumerate(vec):
         # func is either avg_hat or avg_bar
         helper[j, :, :]  = func(values_vec[j], factor, kwargs)
-    helper[:, :, :] = rotate_single_to_global(
+        helper[:, : ,:] = rotate_single_to_global(
         coords['lon'][0], coords['lat'][0],
-        helper[0, :, :], helper[1, :, :])
+        helper[0, :, :], helper[1, :, :]
+    )
     return helper
 
 # changed according to new array structure - check
@@ -252,18 +254,18 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
     # in case of first call build output file
     # output slot, outgoing info
     dyad        = np.empty([
-        grid_nfo['ntim'],
-        grid_nfo['nlev'],
         l_vec,
-        l_vec
+        l_vec,
+        grid_nfo['ntim'],
+        grid_nfo['nlev']
         ])
   # the product of dyadic multiplication (probably term dyadic is misused here)
     product = np.empty([
+            l_vec,
+            l_vec,
             grid_nfo['area_num_hex'][i_cell],
             grid_nfo['ntim'],
-            grid_nfo['nlev'],
-            l_vec,
-            l_vec
+            grid_nfo['nlev']
             ])
 
     product.fill(0)
@@ -273,10 +275,10 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
         constituents.append(values[var])
     constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
-    product = np.einsum('lmik,lmjk->lmijk', constituents, constituents)
+    product = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)
     # average over coarse_area
     dyad = np.einsum(
-        'lmijk,k,lmk->lmij',
+        'ijlmk,l,lmk->ijmk',
         product,
         values['cell_area'],
         values['RHO']
@@ -311,19 +313,19 @@ def gradient(data, grid_nfo, gradient_nfo, var):
         area    = grid_nfo['coarse_area'][i]
         d       = 2 * radius(area) * re
         data['gradient'][i, :, :, 0, 0]   = central_diff(
-            neighs['U_hat'][0], data['U_hat'][i, :, :], neighs['U_hat'][1],
+            neighs['U_hat'][:, :, 0], data['U_hat'][i, :, :], neighs['U_hat'][:, :, 1],
             d
             )
         data['gradient'][i, :, :, 0, 1]  = central_diff(
-            neighs['V_hat'][0], data['V_hat'][i, :, :], neighs['V_hat'][1],
+            neighs['V_hat'][:, :, 0], data['V_hat'][i, :, :], neighs['V_hat'][:, :, 1],
             d
             )
         data['gradient'][i, :, :, 1, 0]   = central_diff(
-            neighs['U_hat'][2], data['U_hat'][i, :, :], neighs['U_hat'][3],
+            neighs['U_hat'][:, :, 2], data['U_hat'][i, :, :], neighs['U_hat'][:, :, 3],
             d
             )
         data['gradient'][i, :, :, 1, 1]   = central_diff(
-            neighs['V_hat'][2], data['V_hat'][i, :, :], neighs['V_hat'][3],
+            neighs['V_hat'][:, :, 2], data['V_hat'][i, :, :], neighs['V_hat'][:, :, 3],
             d
             )
 
@@ -439,9 +441,9 @@ def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
         values[name].fill(0)
     #how large is check radius?
     for j in range(4):
-        coords = gradient_nfo['coords'][i_cell, :, j]
+        coords = gradient_nfo['coords'][i_cell, j, :]
         member_idx = gradient_nfo['member_idx'][i_cell][j]
-        member_idx = member_idx(np.where(member_idx > -1)[0])
+        member_idx = member_idx[np.where(member_idx > -1)[0]]
         member_rad = gradient_nfo['member_rad'][i_cell][j]
     # compute distance weighted average of area weighted members:
         members    = dop.get_members_idx(data, member_idx, var['vars'])
@@ -464,7 +466,7 @@ def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
                 members[vec[0]][:,:,:], members[vec[1]][:,:,:])
             members[vec[0]]   = rot_vec[0,:,:,:]
             members[vec[1]]   = rot_vec[1,:,:,:]
-        helper         = dist_avg(members, member_idx, member_rad, grid_nfo, var['vars'])
+        helper = dist_avg(members, member_idx, member_rad, grid_nfo, var['vars'])
         if 'vector' in var.iterkeys():
             rot_vec =rotate_single_to_global(
                 coords[0], coords[1],
@@ -473,7 +475,7 @@ def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
             helper[vec[1]]   = rot_vec[1]
 
         for name in var['vars']:
-            values[name][j]   = helper[name]
+            values[name][:, :, j]   = helper[name]
 
     return values
 

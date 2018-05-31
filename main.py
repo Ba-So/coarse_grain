@@ -350,10 +350,10 @@ def do_the_dyads(data, grid_nfo):
         print('creating array values["dyad"]')
         data['dyad']        = np.empty([
             grid_nfo['ncells'],
-            grid_nfo['ntim'],
-            grid_nfo['nlev'],
             l_vec,
-            l_vec
+            l_vec,
+            grid_nfo['ntim'],
+            grid_nfo['nlev']
             ])
 
     for i in range(grid_nfo['ncells']):
@@ -411,7 +411,7 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     data['turb_fric'].fill(0.0)
     doprint = 0
 
-    data['turb_fric'] = np.einsum('klmij,klmij->klm', data['dyad'], data['gradient'])
+    data['turb_fric'] = np.einsum('kijlm,klmij->klm', data['dyad'], data['gradient'])
     #equivalent to:
     #for i in range(2):
     #    for j in range(2):
@@ -426,10 +426,10 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
 def prepare_mp(data, grid_nfo, gradient_nfo, kwargs):
     mp_array = []
     mp_sub_dict = {
-        'data' : {},  # muss gesplittet werden
-        'grid_nfo' : {},  # muss gesplittet werden
-        'gradient_nfo' : {}, # muss gesplittet werden
-        'kwargs' : {} # kwargs ist immer gleich für alle procs
+        'data' : {},  # has to be split
+        'grid_nfo' : {},  # has to be split
+        'gradient_nfo' : {}, # has to be split
+        'kwargs' : {} # kwargs always the same for all procs
     }
 
     data_sets = {
@@ -482,9 +482,8 @@ if __name__ == '__main__':
     grid_nfo = {
         'area_num_hex'        : grid['area_num_hex'].values,
         'area_neighbor_idx'   : grid['area_neighbor_idx'].values,
-        'coarse_area'         : grid['coarse_area'].values,
         'cell_area'           : grid['cell_area'].values,
-        'i_cell'              : 0
+        'coarse_area'         : grid['coarse_area'].values,
         }
     for var in grid_nfo.iterkeys():
         grid_nfo[var] = np.moveaxis(grid_nfo[var], -1, 0)
@@ -494,6 +493,7 @@ if __name__ == '__main__':
         'member_idx' : grid['member_idx'].values,
         'member_rad' : grid['member_rad'].values
     }
+
     kwargs['mp'] = {
         'switch' : True,
         'num_procs' : 20
@@ -508,6 +508,7 @@ if __name__ == '__main__':
         print ('file {} of {}').format(i, fin)
         data = read_data(kwargs, i)
         grid_nfo.update({
+            'i_cell' : 0,
             'ntim'                : data.dims['time'],
             'nlev'                : data.dims['lev'],
             'ncells'              : data.dims['ncells'],
