@@ -46,7 +46,7 @@ def define_hex_area(grid, num_rings):
 
   num_hex   = 1+6*num_rings*(num_rings+1)/2
 
-  a_nei_idx = np.empty([num_hex, grid_dims['ncells']])
+  a_nei_idx = np.empty([num_hex, grid.dims['ncells']])
   a_nei_idx.fill(-1) # for masking
 
   num_hex   = np.array([num_hex for i in range(0,grid.dims['ncells'])])
@@ -59,7 +59,7 @@ def define_hex_area(grid, num_rings):
     jh_c    = 1
     a_nei_idx[0,idx] = idx
     while jh_c < num_hex[idx]:
-      idx_n  =  a_nei_idx[jh, idx]
+      idx_n  =  int(a_nei_idx[jh, idx])
 
       if (num_edg[idx_n] == 5):
         num_hex[idx] -= 1

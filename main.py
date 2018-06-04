@@ -411,7 +411,7 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     data['turb_fric'].fill(0.0)
     doprint = 0
 
-    data['turb_fric'] = np.einsum('kijlm,klmij->klm', data['dyad'], data['gradient'])
+    data['turb_fric'] = np.einsum('klmij,klmij->klm', data['dyad'], data['gradient'])
     #equivalent to:
     #for i in range(2):
     #    for j in range(2):
@@ -461,7 +461,7 @@ def prepare_mp(data, grid_nfo, gradient_nfo, kwargs):
 if __name__ == '__main__':
    # kwargs = user()
     kwargs = {
-        'experiment' : 'HS_FT_6000_days',
+        'experiment' : 'BCW_CG_15_days',
         'num_rings' : 3,
         'num_files' : 179
     }
