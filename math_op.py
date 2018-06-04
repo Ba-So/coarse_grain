@@ -4,7 +4,6 @@ import xarray as xr
 import numpy as np
 import data_op as dop
 
-# changed into new array structure
 def coarse_area(grid):
     '''Sums the coarse_area from the areas of its members'''
     co_ar = np.array([0.0 for i in range(0, grid.dims['ncells'])])
@@ -12,8 +11,8 @@ def coarse_area(grid):
     a_nei_idx = grid['area_neighbor_idx'].values
     a_num_hex = grid['area_num_hex'].values
 
-    for i in range(0, grid.dims['ncells']):
-        for j in range(0, a_num_hex[i]):
+    for i in range(0, a_num_hex[i]):
+        for j in range(0, grid.dims['ncells']):
             ij = int(a_nei_idx[i, j])
             co_ar[i] += cell_a[ij]
 
