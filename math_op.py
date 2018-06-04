@@ -14,7 +14,7 @@ def coarse_area(grid):
 
     for i in range(0, grid.dims['ncells']):
         for j in range(0, a_num_hex[i]):
-            ij = a_nei_idx[i, j]
+            ij = int(a_nei_idx[i, j])
             co_ar[i] += cell_a[ij]
 
     coarse_a = xr.DataArray(
