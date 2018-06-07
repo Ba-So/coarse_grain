@@ -475,6 +475,7 @@ if __name__ == '__main__':
         glob.glob(kwargs['filep']+'*grid*.nc') if
         os.path.isfile(n)]
     print kwargs['grid']
+    print kwargs['files']
     kwargs['variables'] = ['U', 'V', 'RHO', 'THETA_V', 'EXNER']
     if not kwargs['files'] or not kwargs['grid']:
         sys.exit('Error:missing gridfiles or datafiles')
@@ -507,14 +508,17 @@ if __name__ == '__main__':
     for i in range(fin):
         print ('file {} of {}').format(i, fin)
         data = read_data(kwargs, i)
+        for key in data.dims.iterkeys():
+            print key
         grid_nfo.update({
             'i_cell' : 0,
             'ntim'                : data.dims['time'],
-            'nlev'                : data.dims['lev'],
-            'ncells'              : data.dims['ncells'],
+            'nlev'                : data.dims['lev_2'],
+            'ncells'              : data.dims['cell'],
             'lat'                 : data['clat'].values,
             'lon'                 : data['clon'].values
             })
+        print('time {}, levels {} and cells {}').format(grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells'])
         data_run = {}
 
         # extract variable numpy arrays from xarray dataset, and move last axis
@@ -537,17 +541,17 @@ if __name__ == '__main__':
         print('globally averaged entropy production rate: {}').format(np.mean(data_run['turb_fric']))
         t_fric = xr.DataArray(
             data_run['turb_fric'],
-            dims = ['time', 'lev', 'ncells']
+            dims = ['time', 'lev_2', 'cell']
         )
 
         t_diss = xr.DataArray(
             data_run['turb_diss'],
-            dims = ['time', 'lev', 'ncells']
+            dims = ['time', 'lev_2', 'cell']
         )
 
         T = xr.DataArray(
             data_run['T'],
-            dims = ['time', 'lev', 'ncells']
+            dims = ['time', 'lev_2', 'cell']
         )
 
         data = data.assign(t_fric = t_fric)
@@ -577,4 +581,5 @@ if __name__ == '__main__':
 # make partial \hat v Grid
 
 # delete \hat v Grid
+
 
