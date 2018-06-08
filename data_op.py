@@ -120,7 +120,7 @@ def get_members_idx(data, idxcs, variables):
     # functional and used.
     out       = {}
 
-    idxcs = idxcs[np.where(idxcs>-1)[0],]
+    idxcs = idxcs[np.where(idxcs>-1)[0],].astype(int)
 
     for var in variables:
         out[var] = data[var][idxcs,]

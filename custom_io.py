@@ -5,44 +5,25 @@ import math_op as mop
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
 
-def read_netcdfs(files, dim, kwargs=None, func=None):
-  """
+def read_netcdfs(path, dim, kwargs=None, func=None):
+    """
         reads data from .nc files:
         path: Path to file
         qty : qty to be read
         """
-  def process_one_path(path):
-    # use a context manager, to ensure file gets closed after read
-    with xr.open_dataset(path) as ds:
-      #transform_func should do some sort of selection
-      # or aggregation
-      if func is not None:
-        ds = func(ds, kwargs)
-      # Load all data from the transformed dataset, to ensure we
-      # use it after closing each original file
-      ds.load()
-      return ds
+    ds = xr.open_dataset(path)
 
-#  paths   = sorted(glob(files))
-  paths = files
-  datasets = [process_one_path(p) for p in paths]
-  combined = datasets[0]
-  if len(datasets) > 1:
-    combined = xr.concat(datasets, dim)
-  return combined
+    if func is not None:
+        ds = func(ds, kwargs)
+
+    ds.load()
+
+    return ds
 
 def extract_variables(ds, variables):
 
-  def take_one_variable(var, ds):
-    return ds[var]
-
   #variables = ['U', 'V']
-  data = {}
-  for var in variables:
-      data[var] = take_one_variable(var, ds)
-
-  ds_o = xr.Dataset(data)
-
+  ds_o = ds[variables]
   # for convienience.
   check = ['vlon', 'vlat']
   ds_keys = [i for i in ds_o.variables.iterkeys()]

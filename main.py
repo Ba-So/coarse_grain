@@ -57,13 +57,13 @@ def read_grid(kwargs):
         print grid
         if 'refined_{}'.format(kwargs['num_rings']) in grid:
             switch = False
-            kwargs['grid'] = [grid]
+            kwargs['grid'] = grid
         print switch
     if switch:
         for grid in kwargs['grid']:
             if not 'refined' in grid:
-                kwargs['grid'] = [grid]
-        path = kwargs['grid'][0]
+                kwargs['grid'] = grid
+        path = kwargs['grid']
         quarks = {
             'num_rings': kwargs['num_rings'],
             'path' : path
@@ -77,8 +77,7 @@ def read_data(kwargs, i):
     quarks = {}
     quarks['variables'] = kwargs['variables']
     func = lambda ds, quarks: cio.extract_variables(ds, **quarks)
-    return cio.read_netcdfs([kwargs['files'][i]], 'time', quarks, func)
-
+    return cio.read_netcdfs(kwargs['files'][i], 'time', quarks, func)
 # changed according to new array structure
 def do_the_average(data, grid_nfo, kwargs):
     '''computes the u and v hat values'''
@@ -463,7 +462,7 @@ if __name__ == '__main__':
     kwargs = {
         'experiment' : 'BCW_CG_15_days',
         'num_rings' : 3,
-        'num_files' : 179
+        'num_files' : 1
     }
     kwargs['filep'] = u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
     kwargs['files'] = [
@@ -505,61 +504,82 @@ if __name__ == '__main__':
     else:
         fin = kwargs['num_files']
 
+    num_slice = 9 #set to 1 minimum
     for i in range(fin):
-        print ('file {} of {}').format(i, fin)
-        data = read_data(kwargs, i)
-        for key in data.dims.iterkeys():
-            print key
-        grid_nfo.update({
-            'i_cell' : 0,
-            'ntim'                : data.dims['time'],
-            'nlev'                : data.dims['lev_2'],
-            'ncells'              : data.dims['cell'],
-            'lat'                 : data['clat'].values,
-            'lon'                 : data['clon'].values
-            })
-        print('time {}, levels {} and cells {}').format(grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells'])
-        data_run = {}
+        for j in range(num_slice):
+            print ('file {} of {}, time-slice {} of {}').format(i+1, fin, j+1, num_slice)
+            data = read_data(kwargs, i)
+            len_slice = data.dims['time']//num_slice
+            if j+1 < num_slice:
+                portion = [j*num_slice, j*num_slice+num_slice]
+            elif j+1 == num_slice:
+                portion = [j*num_slice, None]
+            else:
+                portion = None
 
-        # extract variable numpy arrays from xarray dataset, and move last axis
-        # to first position, (ncells to first)
-        for var in kwargs['variables']:
-            data_run[var] = np.moveaxis(data[var].values, -1, 0)
-        #compute Temperature T for computation
-        data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
+            data = data[
+                (dict(time=slice(*portion)))
+             ]
+            del len_slice, portion
 
-        data_run.pop('EXNER')
-        data_run.pop('THETA_V')
+            grid_nfo.update({
+                'i_cell' : 0,
+                'ntim'                : data.dims['time'],
+                'nlev'                : data.dims['lev_2'],
+                'ncells'              : data.dims['cell'],
+                'lat'                 : data['clat'].values,
+                'lon'                 : data['clon'].values
+                })
 
-        data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
+            print('time {}, levels {} and cells {}').format(grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells'])
 
-        # move cells axis back to original position.
-        for var in data_run.iterkeys():
-            data_run[var] = np.moveaxis(data_run[var], 0, -1)
+            data_run = {}
 
-        print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
-        print('globally averaged entropy production rate: {}').format(np.mean(data_run['turb_fric']))
-        t_fric = xr.DataArray(
-            data_run['turb_fric'],
-            dims = ['time', 'lev_2', 'cell']
-        )
+            # extract variable numpy arrays from xarray dataset, and move last axis
+            # to first position, (ncells to first)
+            for var in kwargs['variables']:
+                data_run[var] = np.moveaxis(data[var].values, -1, 0)
+            #compute Temperature T for computation
+            #delete data this doubles the read operation but goes easy on memory
+            del data
+            print('-'*10)
+            print('computing the Temperature field')
+            data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
 
-        t_diss = xr.DataArray(
-            data_run['turb_diss'],
-            dims = ['time', 'lev_2', 'cell']
-        )
+            data_run.pop('EXNER')
+            data_run.pop('THETA_V')
 
-        T = xr.DataArray(
-            data_run['T'],
-            dims = ['time', 'lev_2', 'cell']
-        )
+            data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
 
-        data = data.assign(t_fric = t_fric)
-        data = data.assign(t_diss = t_diss)
-        data = data.assign(T = T)
+            # move cells axis back to original position.
+            for var in data_run.iterkeys():
+                data_run[var] = np.moveaxis(data_run[var], 0, -1)
 
-        cio.write_netcdf(kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings']),
-                         data)
+            print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
+            print('globally averaged entropy production rate: {}').format(np.mean(data_run['turb_fric']))
+            t_fric = xr.DataArray(
+                data_run['turb_fric'],
+                dims = ['time', 'lev_2', 'cell']
+            )
+
+            t_diss = xr.DataArray(
+                data_run['turb_diss'],
+                dims = ['time', 'lev_2', 'cell']
+            )
+
+            T = xr.DataArray(
+                data_run['T'],
+                dims = ['time', 'lev_2', 'cell']
+            )
+
+            data = read_data(kwargs, i)
+
+            data = data.assign(t_fric = t_fric)
+            data = data.assign(t_diss = t_diss)
+            data = data.assign(T = T)
+
+            cio.write_netcdf(kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings']),
+                            data)
 
 
 # make rho and v Grid, weigh them
