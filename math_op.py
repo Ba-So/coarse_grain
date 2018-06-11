@@ -4,25 +4,6 @@ import xarray as xr
 import numpy as np
 import data_op as dop
 
-def coarse_area(grid):
-    '''Sums the coarse_area from the areas of its members'''
-    co_ar = np.array([0.0 for i in range(0, grid.dims['ncells'])])
-    cell_a = grid['cell_area'].values
-    a_nei_idx = grid['area_neighbor_idx'].values
-    a_num_hex = grid['area_num_hex'].values
-
-    for i in range(0, a_num_hex[i]):
-        for j in range(0, grid.dims['ncells']):
-            ij = int(a_nei_idx[i, j])
-            co_ar[i] += cell_a[ij]
-
-    coarse_a = xr.DataArray(
-        co_ar,
-        dims=['ncells'])
-    kwargs = {'coarse_area' : coarse_a}
-    grid = grid.assign(**kwargs)
-
-    return grid
 
 # changing data structure in area_avg
 def area_avg(kind, grid_nfo, data, var, vec=False):
@@ -346,89 +327,6 @@ def radius(area):
     re        = 6.37111*10**6
     r         = np.sqrt(area/np.pi)/ re
     return r
-
-def max_min_bounds(lonlat, r):
-    # get radius
-    # coords[0,:] latitude values
-    # coords[1,:] longditude values
-    # u is merdional wind, along longditudes
-    #     -> dx along longditude
-    # v is zonal wind, along latitudes
-    #     -> dy along latitude
-    # coords[:,:2] values for dx
-    # coords[:,:2] values for dy
-    # computing minimum and maximum latitudes
-    lock = False
-    lat_min = lonlat[1] - r
-    lat_max = lonlat[1] + r
-    bounds = np.empty([2, 2, 2])
-    bounds.fill(-4)
-    if lat_max > np.pi/2:
-        # northpole in query circle:
-        bounds[0, :, :] = [[lat_min, -np.pi],[np.pi/2, np.pi]]
-        lock = True
-    elif lat_min < -np.pi/2:
-        # southpole in query circle:
-        bounds[0, :, :] = [[-np.pi/2, -np.pi],[lat_max, np.pi]]
-        lock = True
-    else:
-        # no pole in query circle
-        bounds[0, :, :] = [[lat_min, -np.pi], [lat_max, np.pi]]
-  # computing minimum and maximum longditudes:
-    if not lock:
-        lat_T = np.arcsin(np.sin(lonlat[1])/np.cos(r))
-        d_lon = np.arccos(
-            (np.cos(r) - np.sin(lat_T) * np.sin(lonlat[1]))
-            /(np.cos(lat_T)*np.cos(lonlat[1])))
-        lon_min = lonlat[0] - d_lon
-        lon_max = lonlat[0] + d_lon
-
-        if lon_min < -np.pi:
-            bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 1] = lon_min + 2 * np.pi
-            bounds[0, 1, 1] = np.pi
-            #and
-            bounds[1, 0, 1] = - np.pi
-            bounds[1, 1, 1] = lon_max
-        elif lon_max > np.pi:
-            bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 1] = lon_min
-            bounds[0, 1, 1] = np.pi
-            #and
-            bounds[1, 0, 1] = - np.pi
-            bounds[1, 1, 1] = lon_max - 2 * np.pi
-        else:
-            bounds[0, 0, 1] = lon_min
-            bounds[0, 1, 1] = lon_max
-
-    return bounds
-
-def gradient_coordinates(lonlat, area):
-
-    r = 2 * radius(area)
-    lat_min = lonlat[1] - r
-    lat_max = lonlat[1] + r
-    if lat_max > np.pi/2:
-        # northpole in query circle:
-        lat_max = lat_max - np.pi
-    elif lat_min < -np.pi/2:
-        # southpole in query circle:
-        lat_min = lat_min + np.pi
-    r = r / np.cos(lonlat[1])
-    lon_min = lonlat[0] - r
-    lon_max = lonlat[0] + r
-    if lon_min < -np.pi:
-        lon_min = lon_min + np.pi
-    elif lon_max > np.pi:
-        lon_max = lon_max - np.pi
-
-    coords = np.array([
-        np.array([lon_min, lat_min]),
-        np.array([lon_min, lat_max]),
-        np.array([lon_max, lat_min]),
-        np.array([lon_max, lat_max])
-        ])
-    return coords
 
 # changed according to new array structure - check
 def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
