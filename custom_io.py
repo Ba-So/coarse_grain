@@ -6,18 +6,13 @@ import itertools
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
 
-def read_netcdfs(path, kwargs=None, func=None):
+def read_netcdfs(path):
     """
         reads data from .nc files:
         path: Path to file
         qty : qty to be read
         """
     ds = xr.open_dataset(path)
-
-    if func is not None:
-        ds = func(ds, kwargs)
-
-    ds.load()
 
     return ds
 
@@ -34,7 +29,7 @@ def rename_dims_vars(ds, dims = None):
         dims={
             'cell2' : 'ncells',
             'vlon' : 'clon',
-            'vlat' : 'vlon'
+            'vlat' : 'clat'
               }
     for key, item in dims.iteritems():
         if key in ds or key in ds.dims:

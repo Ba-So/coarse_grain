@@ -69,7 +69,11 @@ def area_avg(kind, grid_nfo, data, var, vec=False):
     stack = np.empty(dims, order='F')
 
     #create kwargs for get_members:
+    print_range = 1000
     for i in range(0, grid_nfo['ncells'] ):
+        if i == print_range:
+            print('at {}').format(i)
+            print_range += 1000
         values =  dop.get_members(grid_nfo, data, i, var['vars'])
         values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
         # divide by factor (area or rho_bar)
@@ -114,7 +118,7 @@ def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
     coords =  dop.get_members(grid_nfo, grid_nfo, i_cell, ['lat','lon'])
     # rotating vectors.
     rot_vec = np.empty([len(vec),
-        grid_nfo['area_num_hex'][i_cell],
+        coords['lat'].shape[0],
         grid_nfo['ntim'],
         grid_nfo['nlev']
         ])
@@ -239,16 +243,7 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
         grid_nfo['ntim'],
         grid_nfo['nlev']
         ])
-  # the product of dyadic multiplication (probably term dyadic is misused here)
-    product = np.empty([
-            l_vec,
-            l_vec,
-            grid_nfo['area_num_hex'][i_cell],
-            grid_nfo['ntim'],
-            grid_nfo['nlev']
-            ])
 
-    product.fill(0)
     # helper, containing the constituents for computation
     constituents = []
     for var in vars:
