@@ -11,6 +11,8 @@ import data_op_p as dop
 import math_op as mo
 import math_op_p as mop
 import phys_op as po
+import global_vars as gv
+import update as up
 import xarray as xr
 from multiprocessing import Pool
 
@@ -371,19 +373,19 @@ def do_the_dyads(data, grid_nfo):
     return data
 
 # changed according to new array structure - check
-def perform(data, grid_nfo, gradient_nfo, kwargs):
+def perform(kwargs):
     '''performs the compuations neccessary'''
     # compute u and v hat and bar
     print('--------------')
     print('averaging variable fields')
-    data = do_the_average(data, grid_nfo, kwargs)
+    do_the_average(kwargs)
     # '_bar' and '_hat' contain averages
     # compute gradient
     print('--------------')
     print('computing the gradients')
     t2 = count_time()
     print(time.time())
-    data = do_the_gradients(data, grid_nfo, gradient_nfo, kwargs)
+    do_the_gradients(kwargs)
     t2 = count_time(t2)
     print(time.time())
    # print('Speedup: {}').format(t2-t1)
@@ -392,21 +394,22 @@ def perform(data, grid_nfo, gradient_nfo, kwargs):
     # compute and average the dyads plus comute their primes
     print('--------------')
     print('computing the dyads')
-    data = do_the_dyads(data, grid_nfo)
+    do_the_dyads()
     # 'dyad' [ncells, ntim, nlev, 0:1, 0:1]
     for key in data.iterkeys():
         print key
     print('--------------')
     print('computing the turbulent friction')
-    data['turb_fric'] = np.empty([
+    up.update('data_run', gv.data.update(
+        {'turb_fric' : np.zeros([
         grid_nfo['ncells'],
         grid_nfo['ntim'],
         grid_nfo['nlev']
-    ])
-    data['turb_fric'].fill(0.0)
+        ])}
+    )
     doprint = 0
 
-    data['turb_fric'] = np.einsum('klmij,klmij->klm', data['dyad'], data['gradient'])
+    up.update('data_run', np.einsum('klmij,klmij->klm', data['dyad'], data['gradient']), 'turb_fric')
     #equivalent to:
     #for i in range(2):
     #    for j in range(2):
@@ -490,8 +493,10 @@ if __name__ == '__main__':
         'member_idx' : grid['member_idx'].values,
         'member_rad' : grid['member_rad'].values
     }
+    up.update('gradient_nfo', gradient_nfo)
+    up.update('grid_nfo', grid_nfo)
 
-    del grid
+    del grid, grid_nfo, gradient_nfo
 
     kwargs['mp'] = {
         'switch' : False,
@@ -510,7 +515,7 @@ if __name__ == '__main__':
 
         kwargs['files'][i] = kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings'])
 
-        grid_nfo.update({
+        grid_nfo = gv.grid_nfo.update({
             'i_cell' : 0,
             'ntim'                : data.dims['time'],
             'nlev'                : data.dims['lev_2'],
@@ -518,8 +523,10 @@ if __name__ == '__main__':
             'lat'                 : data['clat'].values,
             'lon'                 : data['clon'].values
             })
+        up.update('grid_nfo', grid_nfo)
+        del grid_nfo
 
-        print('time {}, levels {} and cells {}').format(grid_nfo['ntim'], grid_nfo['nlev'], grid_nfo['ncells'])
+        print('time {}, levels {} and cells {}').format(gv.grid_nfo['ntim'], gv.grid_nfo['nlev'], gv.grid_nfo['ncells'])
 
         data_run = {}
 
@@ -537,48 +544,40 @@ if __name__ == '__main__':
         data_run.pop('EXNER')
         data_run.pop('THETA_V')
 
-        data_run = perform(data_run, grid_nfo, gradient_nfo, kwargs)
+        up.update('data_run', data_run)
+
+        data_out = perform(kwargs)
 
         # move cells axis back to original position.
-        for var in data_run.iterkeys():
-            data_run[var] = np.moveaxis(data_run[var], 0, -1)
+        for var in data_out.iterkeys():
+            data_out[var] = np.moveaxis(data_out[var], 0, -1)
 
-        print('min {} and max {}').format(np.min(data_run['turb_fric']), np.max(data_run['turb_fric']))
-        print('globally averaged entropy production rate: {}').format(np.mean(data_run['turb_fric']))
+        print('min {} and max {}').format(np.min(data_out['turb_fric']), np.max(data_out['turb_fric']))
+        print('globally averaged entropy production rate: {}').format(np.mean(data_out['turb_fric']))
 
 
         data = read_data(kwargs, i)
 
         t_fric = xr.DataArray(
-            np.empty([
-                data.dims['time'],
-                data.dims['lev_2'],
-                data.dims['cell']
-            ]),
+            data_out['turb_fric'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         t_diss = xr.DataArray(
-            np.empty([
-                data.dims['time'],
-                data.dims['lev_2'],
-                data.dims['cell']
-            ]),
+            data_out['turb_diss'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         T = xr.DataArray(
-            np.empty([
-                data.dims['time'],
-                data.dims['lev_2'],
-                data.dims['cell']
-            ]),
+            data_out['T'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         data = data.assign(t_fric = t_fric)
         data = data.assign(t_diss = t_diss)
         data = data.assign(T = T)
+
+        del data_out
 
         cio.write_netcdf(kwargs['files'][i], data)
 
