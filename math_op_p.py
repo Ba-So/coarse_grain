@@ -8,6 +8,29 @@ import xarray as xr
 import numpy as np
 import data_op as dop
 import math_op as mo
+import global_vars as gv
+
+def area_avg_mp(num_o_chunk):
+    chunk = gv.mp['chunks'][num_o_chunk]
+
+    dims = [
+        len(chunk),
+        len(gv.globals_dict['data_run']['var']['vars']),
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev']
+    ]
+    stack = np.zeros(dims, order='F')
+    del dims
+
+    var = gv.globals_dict['data_run']['var']
+    for i, j in enumerate(chunk):
+        stack[i, ] = mo.area_avg_sub(
+            j
+        )
+
+    return stack
+
+
 
 def gradient_mp(chunk):
     # now what you get is:

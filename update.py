@@ -3,41 +3,39 @@
 
 #update functions for global
 # update for dicts??
-import global_var as gv
-globals_dict = {
-    'grid_nfo' : gv.grid_nfo,
-    'gradient_nfo' : gv.gradient_nfo,
-    'data_run' : gv.data_run
-}
+import global_vars as gv
 
-functions ={
-    'update_all' : update_all,
-    'update_dict': update_dict,
-    'update_array': update_array
-}
+class Updater():
 
-def update(varn, values, function = None, indices = None):
-    if indices:
-        global indices = indices
-    if function:
-        functions[function](varn, values, )
-    else:
-        update_all(varn, values)
-    return None
+    def complete(self, varn, values):
+        gv.globals_dict[varn] = values
+        return None
 
-def update_all(varn, values):
-    global globals_dict
-    globals_dict[varn] = values
-    return None
+    def up_entry(self, varn, values):
+        # expects values to be dict
+        gv.globals_dict[varn].update(values)
+        return None
 
-def update_dict(varn, values):
-    global globals_dict
-    global_dict[varn].update(values)
+    def rm_entry(self, varn, values):
+        # expects values to be dict
+        for value in values:
+            gv.globals_dict[varn].pop(value, None)
+        return None
 
-def update_array(varn, values):
-    global indices
-    global globals_dict
-    globals_dict[varn][indices] = values
+    def part(self, varn, values, indices):
+        # expects values to be what?
+        for key, array in values.iteritems():
+            gv.globals_dict[varn][key][indices] = array
+        return None
 
+    def up_mp(self, values):
+        gv.mp.update(values)
+        return None
+
+    def append(values):
+        gv.mp['out'].append(values)
+
+    def scrub():
+        gv.mp['out'] = []
 
 

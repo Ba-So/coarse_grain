@@ -77,159 +77,46 @@ def read_data(kwargs, i):
     ds = cio.extract_variables(ds, kwargs['variables'])
     return ds
 # changed according to new array structure
-def do_the_average(data, grid_nfo, kwargs):
+def do_the_average():
     '''computes the u and v hat values'''
-    # fairly simple
-    var = {
-        'vars'      :['U', 'V'],
-        'vector'       :['U', 'V']
-        }
-    # compute \bar{U} and \bar{V}
 
-
+    # compute \bar{U} and \bar{V} and RHO and T
     print('  ------------')
     print('  computing bar averages')
     var = {
-        'vars'      :['U', 'V'],
-        'vector'       :['U', 'V']
+        'vars'      :[['U'], ['V'], ['T'], ['RHO']],
+        'vector'    :['U', 'V']
         }
-    data = mo.area_avg('bar', grid_nfo, data, var, True)
-    var = {
-        'vars'      :['T', 'RHO'],
-        }
-    data = mo.area_avg('bar', grid_nfo, data, var, False)
+    mo.area_avg('bar', var)
+    # this must become more involved for mp
+
     # compute \hat{U} and \hat{V}
     print('  ------------')
     print('  computing hat averages')
     var = {
-        'vars'      :['U', 'V'],
-        'vector'       :['U', 'V']
+        'vars'      :[['U'], ['V'], ['T']],
+        'vector'    :['U', 'V']
         }
-    data = mo.area_avg('hat', grid_nfo, data, var, True)
-    var = {
-        'vars'      :['T'],
-        }
-    data = mo.area_avg('hat', grid_nfo, data, var)
 
-    print('mean VelocityU  : bar:{}, hat:{}').format(
-        np.mean(data['U_bar']),
-        np.mean(data['U_hat'])
+    mo.area_avg('hat', var)
+
+    print('mean Velocity U  : bar:{}, hat:{}').format(
+        np.mean(gv.globals_dict['data_run']['U_bar']),
+        np.mean(gv.globals_dict['data_run']['U_hat'])
     )
-    print('mean VelocityV  : bar:{}, hat:{}').format(
-        np.mean(data['V_bar']),
-        np.mean(data['V_hat'])
+    print('mean Velocity V  : bar:{}, hat:{}').format(
+        np.mean(gv.globals_dict['data_run']['V_bar']),
+        np.mean(gv.globals_dict['data_run']['V_hat'])
     )
     print('mean Density    : bar:{}, hat: - ').format(
-        np.mean(data['RHO_bar'])
+        np.mean(gv.globals_dict['data_run']['RHO_bar'])
     )
     print('mean Temperature: bar:{}, hat:{}').format(
-        np.mean(data['T_bar']),
-        np.mean(data['T_hat'])
+        np.mean(gv.globals_dict['data_run']['T_bar']),
+        np.mean(gv.globals_dict['data_run']['T_hat'])
     )
 
-    return data
-
-def do_the_gradients_mp(data, grid_nfo, gradient_nfo, kwargs):
-    # prepare mutiprocessing in here.
-    print('    ------------- ')
-    print('    preparing multiprocessing: neighbours')
-    '''computes the gradients of u and v'''
-    var = {
-        'vars'      :['U_hat', 'V_hat'],
-        'vector'      :['U_hat', 'V_hat']
-        }
-    # do circ_dist_avg in seperate step.
-    # data[var], grid_nfo, gradient_nfo['coords', 'member_idx']
-    t1 = count_time()
-    print(t1)
-    num_proc = 30
-    chunks_vec = []
-    for i in range(grid_nfo['ncells']):
-        # variable specific information
-        chunk = []
-        for j,x in enumerate(var['vars']):
-            chunk.append([])
-            for k in range(4):
-                # construct member array (len(vars))
-                helper = data[x][:, :, np.where(gradient_nfo['member_idx'][i][k] >-1 )[0]]
-                chunk[j].append(np.moveaxis(helper, -1, 0))
-        # preparation for general information
-        latlon = []
-        for k in range(4):
-            # coordinates of members (for turning)
-            latlon.append([
-                grid_nfo['lat'][np.where(gradient_nfo['member_idx'][i][k] > -1)[0]],
-                grid_nfo['lon'][np.where(gradient_nfo['member_idx'][i][k] > -1)[0]],
-                grid_nfo['cell_area'][np.where(gradient_nfo['member_idx'][i][k] > -1)[0]]
-            ])
-        # general information, always positioned at [-1]
-        chunk.append([
-            # distance of member from center (for distance weighted average)
-            gradient_nfo['member_rad'][i],
-            # center coordinate (for turning of vectors)
-            gradient_nfo['coords'][i],
-            # coordinates of members for turning
-            latlon
-        ])
-        chunks_vec.append([chunk, [
-           [data[x][:, :, i] for j,x in enumerate(var['vars'])],
-           grid_nfo['coarse_area'][i]]
-        ])
-
-    print(chunks_vec[0])
-    # I don't know why, but this doesn't function...
-    t2 = count_time()
-    print(t2-t1)
-
-    t1 = count_time()
-    print('    ------------- ')
-    print('    starting multiprocessing on {} processors').format(num_proc)
-    chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
-    #pool = Pool(processes=num_proc)
-    #chunks_out = pool.map(neighs_and_grad, chunks)
-    chunks_out = neighs_and_grad(chunks[0])
-    #gradients = np.moveaxis(dop.reorder(chunks_out), 0, -1)
-    #chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
-    #pool = Pool(processes=num_proc)
-    #chunks_out = pool.map_async(mop.circ_dist_avg_vec, chunks).get()
-    #neighbours = dop.reorder(chunks_out)
-    #t2 = count_time()
-    print(t2-t1)
-    #print('    ------------- ')
-    #print('    preparing multiprocessing: gradients')
-
-    #t1 = count_time()
-    #chunks_vec = []
-    #for i in range(grid_nfo['ncells']):
-    #    chunk = []
-    #    chunk.append(neighbours[i])
-    #    chunk.append([data[x][:, :, i] for j,x in enumerate(var['vars']) ])
-    #    chunk.append(grid_nfo['coarse_area'][i])
-    #    chunks_vec.append(chunk)
-
-    #chunks = [chunks_vec[i::num_proc] for i in range(num_proc)]
-
-    #t2 = count_time()
-    #print(t2-t1)
-    #print('    ------------- ')
-    #print('    starting multiprocessing on {} processors').format(num_proc)
-
-    #t1 = count_time()
-    #chunks_vec = []
-    #pool = Pool(processes=num_proc)
-    #chunks_out = pool.map_async(mop.gradient_mp, chunks).get()
-    #gradients = np.moveaxis(dop.reorder(chunks_out), 0, -1)
-    #t2 = count_time()
-    #print(t2-t1)
-
-    data['gradient'] = gradients
-
-    print('    ------------- ')
-    print('mean velocity gradient u_x: {}').format(np.mean(data['gradient'][0,0]))
-    print('mean velocity gradient u_y: {}').format(np.mean(data['gradient'][0,1]))
-    print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
-    print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
-    return data
+    return None
 
 def neighs_and_grad(chunk):
 
@@ -240,88 +127,20 @@ def neighs_and_grad(chunk):
     return chunk
 
 # changed according to new array structure
-def do_the_gradients(data, grid_nfo, gradient_nfo, kwargs):
+def do_the_gradients():
     '''computes the gradients of u and v'''
-    var = {
-        'vars'      :['U_hat', 'V_hat'],
-        'vector'      :['U_hat', 'V_hat']
-        }
+    update = up.Updater()
 
-    data = mo.gradient(data, grid_nfo, gradient_nfo, var)
+    update.up_entry('data_run', {'gradient':  mo.gradient()})
 
-    print('mean velocity gradient u_x: {}').format(np.mean(data['gradient'][0,0]))
-    print('mean velocity gradient u_y: {}').format(np.mean(data['gradient'][0,1]))
-    print('mean velocity gradient v_x: {}').format(np.mean(data['gradient'][1,0]))
-    print('mean velocity gradient v_y: {}').format(np.mean(data['gradient'][1,1]))
-    return data
-
-def do_the_dyads_mp(data, grid_nfo):
-    '''computes the dyadic product of uv and rho plus averaging'''
-    # check if everything is there
-    needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar']
-    if not all(need in data for need in needs):
-        this = [need for need in needs if need not in data]
-        sys.exit('ERROR: do_the_dyads I miss quantities to do the computing {}'.format(this))
-      # define kwargs for computation
-    kwargs = {
-        'vars'    : ['U', 'V', 'RHO'],
-        'UV'      : {'vars'   : ['U', 'V'],
-                     'kind'   : 'vec'
-                    },
-        'dyad'    : {'vars'   : ['U_f', 'V_f']
-                    }
-        }
-
-      #start cellwise iteration
-    doprint = 5000
-    if not('dyad' in data):
-        l_vec = len(kwargs['UV']['vars'])
-        # in case of first call build output file
-        # output slot, outgoing info
-        print('creating array values["dyad"]')
-        data['dyad']        = np.empty([
-            l_vec,
-            l_vec,
-            grid_nfo['ntim'],
-            grid_nfo['nlev'],
-            grid_nfo['ncells']
-            ])
-    chunk_vec = []
-    for i in range(grid_nfo['ncells']):
-        chunk = []
-        if i == doprint:
-            print('cell {} of {}').format(i, grid_nfo['ncells'])
-            doprint = doprint + 5000
-        # get area members
-        values = do.get_members(grid_nfo, data, i, kwargs['vars'])
-        chunk.append([var for var in values.iteritems()])
-        # add lat lon coordinates to values
-        values = do.get_members(grid_nfo, grid_nfo, i, ['lat', 'lon'])
-        chunk.append([var for var in values.iteritems()])
-        # get individual areas
-        values = do.get_members(grid_nfo, grid_nfo, i, ['cell_area'])
-        chunk.append([var for var in values.iteritems()])
-        # get coarse values
-        values = {}
-        for var in kwargs['vars'][:2]:
-            values[var+'_hat'] = data[var+'_hat'][:, :, i]
-        chunk.append([var for var in values.iteritems()])
-        # compute fluctuations
-        chunk_vec.append(chunk)
-    chunks = [chunk_vec[i::n_procs] for i in range(n_procs)]
-
-
-    values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
-    data['dyad'][:,:,:,:,i] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
-
-    return data
-
-def dyads_parallel(chunk):
-
-    return chunk
+    print('mean velocity gradient u_x: {}').format(np.mean(gv.globals_dict['data_run']['gradient'][0, 0]))
+    print('mean velocity gradient u_y: {}').format(np.mean(gv.globals_dict['data_run']['gradient'][0, 1]))
+    print('mean velocity gradient v_x: {}').format(np.mean(gv.globals_dict['data_run']['gradient'][1, 0]))
+    print('mean velocity gradient v_y: {}').format(np.mean(gv.globals_dict['data_run']['gradient'][1, 1]))
+    return None
 
 # changed according to new array structure - check
-def do_the_dyads(data, grid_nfo):
+def do_the_dyads():
     '''computes the dyadic product of uv and rho plus averaging'''
     # check if everything is there
     needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar']
@@ -331,10 +150,10 @@ def do_the_dyads(data, grid_nfo):
       # define kwargs for computation
     kwargs = {
         'vars'    : ['U', 'V', 'RHO'],
-        'UV'      : {'vars'   : ['U', 'V'],
+        'UV'      : {'variables'   : ['U', 'V'],
                      'kind'   : 'vec'
                     },
-        'dyad'    : {'vars'   : ['U_f', 'V_f']
+        'dyad'    : {'variables'   : ['U_f', 'V_f']
                     }
         }
 
@@ -345,47 +164,52 @@ def do_the_dyads(data, grid_nfo):
         # in case of first call build output file
         # output slot, outgoing info
         print('creating array values["dyad"]')
-        data['dyad']        = np.empty([
+        out = np.zeros([
             grid_nfo['ncells'],
             l_vec,
             l_vec,
             grid_nfo['ntim'],
             grid_nfo['nlev']
-            ])
+        ])
 
     for i in range(grid_nfo['ncells']):
         if i == doprint:
             print('cell {} of {}').format(i, grid_nfo['ncells'])
             doprint = doprint + 5000
         # get area members
-        values = do.get_members(grid_nfo, data, i, kwargs['vars'])
-        # add lat lon coordinates to values
-        values.update(do.get_members(grid_nfo, grid_nfo, i, ['lat', 'lon']))
-        # get individual areas
-        values.update(do.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
+        values = do.get_members('data_run', i, kwargs['vars'])
+        # add lat lon coordinates to values, and areas
+        values.update(do.get_members('grid_nfo', i, ['lat', 'lon', 'cell_area']))
         # get coarse values
         for var in kwargs['vars'][:2]:
             values[var+'_hat'] = data[var+'_hat'][i, :, :]
         # compute fluctuations
-        values = mo.compute_flucts(values, grid_nfo, grid_nfo['area_num_hex'][i], **kwargs['UV'])
-        data['dyad'][i, :, :, :, :] = mo.compute_dyads(values, grid_nfo, i, **kwargs['dyad'])
+        values = mo.compute_flucts(values, **kwargs['UV'])
+        out[i, :, :, :, :] = mo.compute_dyads(values, i, **kwargs['dyad'])
 
     return data
 
 # changed according to new array structure - check
 def perform(kwargs):
+    update = up.Updater()
     '''performs the compuations neccessary'''
     # compute u and v hat and bar
     print('--------------')
     print('averaging variable fields')
-    do_the_average(kwargs)
+    t2 = count_time()
+    print(time.time())
+    do_the_average() #is ok maybe...
+    t2 = count_time(t2)
+    print(time.time())
+    print(t2)
     # '_bar' and '_hat' contain averages
     # compute gradient
     print('--------------')
     print('computing the gradients')
     t2 = count_time()
     print(time.time())
-    do_the_gradients(kwargs)
+
+    do_the_gradients()
     t2 = count_time(t2)
     print(time.time())
    # print('Speedup: {}').format(t2-t1)
@@ -396,68 +220,52 @@ def perform(kwargs):
     print('computing the dyads')
     do_the_dyads()
     # 'dyad' [ncells, ntim, nlev, 0:1, 0:1]
-    for key in data.iterkeys():
+    for key in gv.globals_dict['data_run'].iterkeys():
         print key
     print('--------------')
     print('computing the turbulent friction')
-    up.update('data_run', gv.data.update(
-        {'turb_fric' : np.zeros([
-        grid_nfo['ncells'],
-        grid_nfo['ntim'],
-        grid_nfo['nlev']
-        ])}
+    update.up_entry(
+        'data_run',
+        {
+            'turb_fric' : np.zeros([
+                gv.globals_dict['grid_nfo']['ncells'],
+                gv.globals_dict['grid_nfo']['ntim'],
+                gv.globals_dict['grid_nfo']['nlev']
+            ])
+        }
     )
-    doprint = 0
 
-    up.update('data_run', np.einsum('klmij,klmij->klm', data['dyad'], data['gradient']), 'turb_fric')
-    #equivalent to:
-    #for i in range(2):
-    #    for j in range(2):
-    #        data['turb_fric'][:, :, :] = data['turb_fric'] + np.multiply(
-    #            data['dyad'][i, j, :, :, :],
-    #            data['gradient'][i, j, :, :, :]
-    #            )
-    data['turb_diss'] = -1 * np.divide(data['turb_fric'], data['RHO_bar'])
-    data['turb_fric'] = -1 * np.divide(data['turb_fric'], data['T_bar'])
-    return data
+    update.up_entry(
+        'data_run',
+        {
+            'turb_fric' : np.einsum(
+                'klmij,klmij->klm',
+                gv.globals_dict['data_run']['dyad'],
+                gv.globals_dict['data_run']['gradient']
+            )
+        }
+    )
 
-def prepare_mp(data, grid_nfo, gradient_nfo, kwargs):
-    mp_array = []
-    mp_sub_dict = {
-        'data' : {},  # has to be split
-        'grid_nfo' : {},  # has to be split
-        'gradient_nfo' : {}, # has to be split
-        'kwargs' : {} # kwargs always the same for all procs
-    }
+    update.up_entry(
+        'data_run',
+        {'turb_diss' : -1 * np.divide(
+            gv.globals_dict['data_run']['turb_fric'],
+            gv.globals_dict['data_run']['RHO_bar']
+        )}
+    )
 
-    data_sets = {
-        'data' : data,
-        'grid_nfo' : grid_nfo,
-        'gradient_nfo' : gradient_nfo
-    }
-    num_procs = kwargs['mp']['num_procs']
-
-    for i in range(num_procs):
-        for name, data_set in data_sets.iteritems():
-            for key, item in data_set.iteritems():
-                index_ncells = data_set[key].shape.index(grid_nfo['ncells'])
-                num_dims = len(data_set[key].shape)
-                if index_ncells == 0:
-                    mp_sub_dict['name']['key'] = np.array([data_set[key][i::num_proc,]])
-                elif index_ncells == 2:
-                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, i::num_proc,]])
-                elif index_ncells == 3:
-                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, :, i::num_proc,]])
-                elif index_ncells == 4:
-                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, :, :, i::num_proc,]])
-                elif index_ncells == 5:
-                    mp_sub_dict['name']['key'] = np.array([data_set[key][:, :, :, :, i::num_proc,]])
-        mp_sub_dict['kwargs'] = kwargs
-        mp_array.append(mp_sub_dict)
-    return mp_array
+    update.up_entry(
+        'data_run',
+        {'turb_fric' : -1 * np.divide(
+            gv.globals_dict['data_run']['turb_fric'],
+            gv.globals_dict['data_run']['T_bar']
+        )}
+    )
+    return None
 
 if __name__ == '__main__':
    # kwargs = user()
+    update = up.Updater()
     kwargs = {
         'experiment' : 'BCW_CG_15_days',
         'file_name' : 'time_slice',
@@ -493,15 +301,12 @@ if __name__ == '__main__':
         'member_idx' : grid['member_idx'].values,
         'member_rad' : grid['member_rad'].values
     }
-    up.update('gradient_nfo', gradient_nfo)
-    up.update('grid_nfo', grid_nfo)
+    update.complete('gradient_nfo', gradient_nfo)
+    update.complete('grid_nfo', grid_nfo)
 
     del grid, grid_nfo, gradient_nfo
 
-    kwargs['mp'] = {
-        'switch' : False,
-        'num_procs' : 20
-    }
+    # define number of loops, through number of files.
 
     if kwargs['num_files'] > len(kwargs['files']):
         fin = len(kwargs['files'])
@@ -511,73 +316,113 @@ if __name__ == '__main__':
     for i in range(fin):
 
         print ('file {} of {}').format(i+1, fin)
+        # read the data from file
         data = read_data(kwargs, i)
 
+        # define file output name
         kwargs['files'][i] = kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings'])
 
-        grid_nfo = gv.grid_nfo.update({
+        # update the grid_nfo
+        grid_nfo = {
             'i_cell' : 0,
             'ntim'                : data.dims['time'],
             'nlev'                : data.dims['lev_2'],
-            'ncells'              : data.dims['cell'],
+           # 'ncells'              : data.dims['cell'],
+            'ncells'              : 1000,
             'lat'                 : data['clat'].values,
             'lon'                 : data['clon'].values
-            })
-        up.update('grid_nfo', grid_nfo)
+            }
+        update.up_entry('grid_nfo', grid_nfo)
         del grid_nfo
 
-        print('time {}, levels {} and cells {}').format(gv.grid_nfo['ntim'], gv.grid_nfo['nlev'], gv.grid_nfo['ncells'])
+        # give run parameters as output, just so something nice happens on
+        # screen...
+        print('time {}, levels {} and cells {}').format(
+            gv.globals_dict['grid_nfo']['ntim'],
+            gv.globals_dict['grid_nfo']['nlev'],
+            gv.globals_dict['grid_nfo']['ncells']
+        )
 
+        # extract variables neccessary for computation
         data_run = {}
 
-        # extract variable numpy arrays from xarray dataset, and move last axis
-        # to first position, (ncells to first)
+        # move last axisi to first position, (ncells to first position)
         for var in kwargs['variables']:
             data_run[var] = np.moveaxis(data[var].values, -1, 0)
-        #compute Temperature T for computation
         #delete data this doubles the read operation but goes easy on memory
-        del data
+        del data # just to cleanup memory
+        update.complete('data_run', data_run)
+        del data_run # keep that thing clean!
+
+        # preliminary work towards multiprocessing, not yet properly implemented
+        num_procs = 5
+        update.up_mp(
+            {
+                'mp' : True
+            }
+        )
+        if gv.mp['mp']:
+            dop.prepare_mp(num_procs)
+
+        #compute Temperature T for computation
         print('-'*10)
         print('computing the Temperature field')
-        data_run['T'] = po.potT_to_T_exner(data_run['THETA_V'], data_run['EXNER'])
+        update.up_entry(
+            'data_run',
+            {'T' : po.potT_to_T_exner(
+                gv.globals_dict['data_run']['THETA_V'],
+                gv.globals_dict['data_run']['EXNER']
+            )}
+        )
+        update.rm_entry(
+            'data_run',
+            ['EXNER', 'THETA_V']
+        )
 
-        data_run.pop('EXNER')
-        data_run.pop('THETA_V')
-
-        up.update('data_run', data_run)
-
-        data_out = perform(kwargs)
+        perform(kwargs) #gibt ( dann) keinen output mehr, weil alles in global steht...
 
         # move cells axis back to original position.
-        for var in data_out.iterkeys():
-            data_out[var] = np.moveaxis(data_out[var], 0, -1)
+        data_out = {}
+        for key, item in gv.globals_dict.iteritems():
+            data_out[key] = np.moveaxis(item, 0, -1)
 
-        print('min {} and max {}').format(np.min(data_out['turb_fric']), np.max(data_out['turb_fric']))
-        print('globally averaged entropy production rate: {}').format(np.mean(data_out['turb_fric']))
+        update.up_entry('data_run', data_out)
+        del data_out
 
+
+        print('min {} and max {}').format(
+            np.min(gv.globals_dict['turb_fric']),
+            np.max(gv.globals_dict['turb_fric'])
+        )
+        # the question remains IF those are really entropy production rates...
+        print('globally averaged entropy production rate: {}').format(
+            np.mean(gv.globals_dict['turb_fric'])
+        )
+
+        # there may yet be a more concise and effective way to do this.
+        # technically there is no need to read the whole data set.
+        # just write to file whatever we needed...
 
         data = read_data(kwargs, i)
 
         t_fric = xr.DataArray(
-            data_out['turb_fric'],
+            gv.globals_dict['turb_fric'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         t_diss = xr.DataArray(
-            data_out['turb_diss'],
+            gv.globals_dict['turb_diss'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         T = xr.DataArray(
-            data_out['T'],
+            gv.globals_dict['T'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         data = data.assign(t_fric = t_fric)
         data = data.assign(t_diss = t_diss)
         data = data.assign(T = T)
-
-        del data_out
 
         cio.write_netcdf(kwargs['files'][i], data)
 

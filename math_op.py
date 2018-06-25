@@ -1,172 +1,169 @@
-import os
 import sys
-import xarray as xr
 import numpy as np
-import data_op as dop
+import data_op as do
+import data_op_p as dop
+import math_op_p as mop
+import global_vars as gv
+import update as up
+from multiprocessing import Pool
 
 
 # changing data structure in area_avg
-def area_avg(kind, grid_nfo, data, var, vec=False):
+def area_avg(kind, var):
+# the no return structure could be hindering for multiprocessing
     '''computes the bar average over all vars (multiplied)'''
+    update = up.Updater()
     name = []
-    kwargs = {}
 
-    if not vec:
-        len_vec = 1
-        name = var['vars'][:]
-        for i, item in enumerate(var['vars']):
-            name[i] = name[i]+'_'+kind
-    else:
-        len_vec = len(var['vector'])
-        name = var['vector'][:]
-        for i, item in enumerate(name):
-            name[i] = name[i]+'_'+kind
+    # prepare names:
+    name = []
+    for item in var['vars']:
+        name.append(item[0] + '_' + kind)
+
     print name
 
-    if kind == 'hat':
+    # in case of vector averaging:
 
-        func = lambda val, fac, kwargs: avg_hat(val, fac, **kwargs)
-        kwargs = {
-            'ntim': grid_nfo['ntim'],
-            'nlev': grid_nfo['nlev']
-            }
+    dims = [
+        gv.globals_dict['grid_nfo']['ncells'],
+        len(var['vars']),
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev']
+    ]
+    stack = np.zeros(dims, order='F')
+    dims.pop(1)
+    allocate_new = { item : np.zeros(dims) for item in name }
+    update.up_entry('data_run', allocate_new)
+
+    del allocate_new
+
+    if kind == 'hat':
         # fatal: RHO missing
-        if not 'RHO' in data:
+        if 'RHO' not in gv.globals_dict['data_run']:
             sys.exit('ERROR: area_avg kind = "hat": missing "RHO"')
 
-        if not 'RHO' in var['vars']:
-            var['vars'].append('RHO')
+        for i, vals in enumerate(var['vars']):
+            if 'RHO' not in vals:
+                var['vars'][i].append('RHO')
 
         # semi fatal: RHO_bar missing
-        if not 'RHO_bar' in data:
-            data = area_avg('bar', grid_nfo, data, {'vars':['RHO']})
+        if 'RHO_bar' not in gv.globals_dict['data_run']:
+            area_avg('bar', {'vars':['RHO']})
 
         factor = {}
-        factor['RHO_bar'] =data['RHO_bar']
-        factor['coarse_area'] = grid_nfo['coarse_area']
-        factor =  mult(factor)
+        factor['RHO_bar'] = gv.globals_dict['data_run']['RHO_bar']
+        factor['coarse_area'] = gv.globals_dict['grid_nfo']['coarse_area']
+        factor = mult(factor) # make this a no return function, too???
 
     elif kind == 'bar':
-        func = lambda val, fac, kwargs: avg_bar(val, fac, **kwargs)
-        factor = grid_nfo['coarse_area']
+        factor = gv.globals_dict['grid_nfo']['coarse_area']
 
     else:
-        print 'ERROR area_avg: unknown averaging type'
-        return None
+        sys.exit('ERROR: area_avg kind = {}: invalid').format(kind)
 
-    if vec:
-        if not all(key in grid_nfo for key in ['lat', 'lon']):
-            sys.exit('ERROR: avg_area kind kind = vec, missing "lat" or "lon"')
-        kwargs = {
-            'i_cell'   : 0,
-            'grid_nfo' : grid_nfo,
-            'vec'      : var['vector'],
-            'func'     : func,
-            'kwargs'   : kwargs
-            }
-        func = lambda val, fac, kwargs: avg_vec(val, fac, **kwargs)
-    dims = [grid_nfo['ncells'], len_vec, grid_nfo['ntim'], grid_nfo['nlev']]
-    stack = np.empty(dims, order='F')
+    update.up_entry('data_run', {'factor' : factor, 'var' : var})
 
-    #create kwargs for get_members:
-    print_range = 1000
-    for i in range(0, grid_nfo['ncells'] ):
-        if i == print_range:
-            print('at {}').format(i)
-            print_range += 1000
-        values =  dop.get_members(grid_nfo, data, i, var['vars'])
-        values.update(dop.get_members(grid_nfo, grid_nfo, i, ['cell_area']))
-        # divide by factor (area or rho_bar)
-        kwargs['i_cell'] = i
-        values = func(values, factor, kwargs)
-        stack[i, :, :, :] = values
-    # put into xArray
-    for i in range(len_vec):
-        data[name[i]] = stack[:, i, :, :]
-    return data
+    if gv.mp.get('mp'):
+        # go parallel
+        pool = Pool(processes = gv.mp['n_procs'])
+        result = pool.map(mop.area_avg_mp, gv.mp['iterator'])
+        # reattribute names to variables
+        for i, part in enumerate(result):
+            result[i] = { item : part[:, i,] for i, item in enumerate(name)}
+        # write variables to global file
+        dop.out_to_global(result)
+        del result
 
-# call functions for area_avg
-# -----
-# changed according to new array structure - check
-# (nothing to do)
-def avg_bar(values, factor, i_cell):
-    # multiply var area values (weighting)
-    values =  mult(values)
-    # Sum Rho*var(i) up
-    values =  np.sum(values,0)
+    else:
+        for i in range(gv.globals_dict['grid_nfo']['ncells']):
+            stack[i, :, :, :] = area_avg_sub(i)
+        # reattribute names to variables
+        up_dict = { item : stack[:, i,] for i, item in enumerate(name)}
+        # write variables to global file
+        update.up_entry('data_run', up_dict)
 
-
-    return values/factor[i_cell]
-
-# changed according to new array structure - check
-def avg_hat(values, factor, i_cell, ntim, nlev):
-    # multiply var area values (weighting)
-    values =  mult(values)
-
-    values =  np.sum(values,0)
-    values = np.divide(values, factor[i_cell, :, :])
-
-    return values
-    # -----
+    return None
 
 # changed according to new array structure - check
 # (nothing to do)
-def avg_vec(values, factor, i_cell, grid_nfo, vec, func, kwargs):
-    # from here on we stay in local_coordinates. Only revert back after all the
-    # operations have been performed.
-    kwargs['i_cell'] = i_cell
-    coords =  dop.get_members(grid_nfo, grid_nfo, i_cell, ['lat','lon'])
-    # rotating vectors.
-    rot_vec = np.empty([len(vec),
-        coords['lat'].shape[0],
-        grid_nfo['ntim'],
-        grid_nfo['nlev']
+def area_avg_sub(i_cell):
+    '''
+        To manage those pesky vectors. additionally turns vectors
+        to align a local spherical coordinate system, then calls avg_hat or avg_bar
+        and turns the resulting averaged vector back onto global coordinate system.
+        Nu isses ne eierscheissende Wollmilchsau
+    '''
+    var = gv.globals_dict['data_run']['var']
+
+    values = []
+    from_grid = ['cell_area']
+    if var.get('vector'):
+        from_grid.append('lat')
+        from_grid.append('lon')
+
+    areas = do.get_members('grid_nfo', i_cell, from_grid)
+
+    for i, val in enumerate(var['vars']):
+        values.append({})
+        values[i].update(do.get_members('data_run', i_cell, val))
+        values[i].update({'cell_area' : areas['cell_area']})
+
+    if var.get('vector'):
+        indx = []
+        for k in var['vector']:
+            for i, val in enumerate(values):
+                if k in val:
+                    indx.append(i)
+
+        rot_vec = np.zeros([
+            len(var['vector']),
+            areas['lat'].shape[0],
+            gv.globals_dict['grid_nfo']['ntim'],
+            gv.globals_dict['grid_nfo']['nlev']
         ])
-    rot_vec.fill(0)
-    rot_vec[:,:,:,:] = rotate_ca_members_to_local(
-        coords['lon'], coords['lat'],
-        values[vec[0]][:,:,:], values[vec[1]][:,:,:]
+
+        rot_vec[:, :, :, :] = rotate_ca_members_to_local(
+            areas['lon'],
+            areas['lat'],
+            values[indx[0]][var['vector'][0]][:, :, :],
+            values[indx[1]][var['vector'][1]][:, :, :]
         )
-    # splitting dictionary up
-    # magic that:
-    help_dic  = {}
 
-    for key in values:
-        if key not in vec:
-            help_dic[key] = values[key]
-    values_vec = []
-    for j, item  in enumerate(vec):
-        values_vec.append({vec[j] : rot_vec[j,:,:,:]})
-        values_vec[j].update(help_dic)
+        values[indx[0]][var['vector'][0]][:, :, :] = rot_vec[0, :, :, :]
+        values[indx[1]][var['vector'][1]][:, :, :] = rot_vec[1, :, :, :]
 
-  # computing averages
-    helper = np.empty([len(vec), grid_nfo['ntim'],grid_nfo['nlev']])
-    for j, item  in enumerate(vec):
-        # func is either avg_hat or avg_bar
-        helper[j, :, :]  = func(values_vec[j], factor, kwargs)
-        helper[:, : ,:] = rotate_single_to_global(
-        coords['lon'][0], coords['lat'][0],
-        helper[0, :, :], helper[1, :, :]
-    )
-    return helper
+    for i, vals in enumerate(values):
+        vals = mult(vals)
+        # Sum Rho*var(i) up
+        vals = np.sum(vals, 0)
+        values[i] = np.divide(vals, gv.globals_dict['data_run']['factor'][i_cell])
+
+# the below may well be superlouus
+#    if var.get('vector'):
+#        values[indx[0]], values[indx[1]] = rotate_single_to_global(
+#            areas['lon'][0],
+#            areas['lat'][0],
+#            values[indx[0]][:, :],
+#            values[indx[1]][:, :]
+#        )
+    del indx
+    return values
 
 # changed according to new array structure - check
 # (nothing to do)
-def compute_flucts(values, grid_dic, num_hex, vars, kind):
+def compute_flucts(values, variables, kind):
     '''computes the fluctuations relative to the hat quantities.'''
 
     kwargs = {
-        'num_hex' : num_hex,
         'values' : values,
-        'grid_dic': grid_dic,
-        'vars'    : vars
+        'vars' : variables
         }
     if kind == 'vec':
     #  func = ...
-        func= lambda kwargs: vector_flucts(**kwargs)
+        func = lambda kwargs: vector_flucts(**kwargs)
     elif kind == 'scalar':
     #  func = ...
-        func= lambda kwargs: scalar_flucts(**kwargs)
+        func = lambda kwargs: scalar_flucts(**kwargs)
     else:
         sys.exit('ERROR: compute_flucts not ia valid "kind" {}').format(kwargs['kind'])
 
@@ -176,77 +173,80 @@ def compute_flucts(values, grid_dic, num_hex, vars, kind):
 
 # changed according to new array structure - check
 # (nothing to do)
-def scalar_flucts(values, grid_dic, num_hex, vars):
+def scalar_flucts(values, variables):
 
-    result    = np.empty([num_hex, grid_dic['ntim'], grid_dic['nlev']])
-    for i in range(len(vars) ):
-        result.fill(0)
-        #for j in range(num_hex):
-        #    result[j,:,:]     = values[vars[i]][ j, :, :] - values[vars[i]+'_bar'][:,:]
-        #above is equivalent to operation below
-        values[vars[i]+'_f'] = np.subtract(
-            values[vars[i]],
-            values[vars[i]+'_hat'][np.newaxis,:]
+    for item in variables.iteritems():
+        values[item + '_f'] = np.subtract(
+            values[item],
+            values[item + '_hat'][np.newaxis, :]
         )
 
     return values
 
 # changed according to new array structure - check
 # (nothing to do)
-def vector_flucts(values, grid_dic, num_hex, vars):
-    rot_vec = np.empty([len(vars),num_hex, grid_dic['ntim'], grid_dic['nlev']])
-    rot_vec.fill(0)
-    rot_vec[:, :,:,:]  = rotate_ca_members_to_local(
-        values['lon'], values['lat'],
-        values[vars[0]][:, :, :], values[vars[1]][:, :, :])
-    rot_bar = np.empty([len(vars), grid_dic['ntim'], grid_dic['nlev']])
-    rot_bar.fill(0)
-    rot_bar[:, :, :] =rotate_single_to_local(
-        values['lon'][0], values['lat'][0],
-        values[vars[0] + '_hat'][:, :],
-        values[vars[1] + '_hat'][:, :])
-    result    = np.empty([
-        len(vars), num_hex, grid_dic['ntim'], grid_dic['nlev']
+def vector_flucts(values, variables):
+    rot_vec = np.zeros([
+        len(variables),
+        len(gv.globals_dict['grid_nfo']['area_member_idx'][0]),
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev']
+    ])
+    rot_vec[:, :, :, :] = rotate_ca_members_to_local(
+        values['lon'],
+        values['lat'],
+        values[variables[0]][:, :, :],
+        values[variables[1]][:, :, :]
+    )
+    rot_bar = np.zeros([
+        len(variables),
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev']
+    ])
+    rot_bar[:, :, :] = rotate_single_to_local(
+        values['lon'][0],
+        values['lat'][0],
+        values[variables[0] + '_hat'][:, :],
+        values[variables[1] + '_hat'][:, :]
+    )
+    result = np.zeros([
+        len(variables),
+        len(gv.globals_dict['grid_nfo']['area_member_idx'][0]),
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev']
         ])
-    result.fill(0)
-    # use np.subtract to optimize these
     result = np.subtract(
         rot_vec,
-        rot_bar[:,np.newaxis,:,:]
+        rot_bar[:, np.newaxis, :, :]
     )
-    # equivalent to above
-    #for i in range(len(vars) ):
-    #    for j in range(num_hex): # a bit ad hoc
-    #        result[i, j, :, :]     = rot_vec[i, j, :, :] - rot_bar[i, :, :]
-
-    for i in range(len(vars)):
-        values[vars[i]+'_f'] = result[i, :, :, :]
+    for i, item in enumerate(variables):
+        values[item + '_f'] = result[i, :, :, :]
 
     return values
 
 # changed according to new array structure - check
-def compute_dyads(values, grid_nfo, i_cell, vars):
+def compute_dyads(values, i_cell, variables):
     '''computes the dyadic products of v'''
-    if not(all(key in values for key in ['RHO'])):
+    if all(key not in values for key in ['RHO']):
         sys.exit('ERROR: compute_dyads, "RHO" missing in values')
-    if not(all(key in grid_nfo for key in ['cell_area'])):
+    if all(key not in gv.globals_dict['grid_nfo'] for key in ['cell_area']):
         sys.exit('ERROR: compute_dyads, "cell_area" missing in grid_nfo')
 
     # dimension of dyad
-    l_vec   = len(vars)
+    l_vec = len(variables)
 
     # in case of first call build output file
     # output slot, outgoing info
-    dyad        = np.empty([
+    dyad = np.zeros([
         l_vec,
         l_vec,
-        grid_nfo['ntim'],
-        grid_nfo['nlev']
-        ])
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev']
+    ])
 
     # helper, containing the constituents for computation
     constituents = []
-    for var in vars:
+    for var in variables:
         constituents.append(values[var])
     constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
@@ -258,210 +258,199 @@ def compute_dyads(values, grid_nfo, i_cell, vars):
         values['cell_area'],
         values['RHO']
     )
-    dyad = np.divide(dyad, grid_nfo['coarse_area'][i_cell])
+    dyad = np.divide(dyad, gv.globals_dict['grid_nfo']['coarse_area'][i_cell])
 
     return dyad
 
 # changed according to new array structure
-def gradient(data, grid_nfo, gradient_nfo, var):
+def gradient():
 
-    re        = 6.37111*10**6
+    var = {
+        'vars' :['U_hat', 'V_hat'],
+        'vector' :['U_hat', 'V_hat']
+        }
+
+    r_e = 6.37111*10**6
     l_vec = len(var['vars'])
-    data['gradient']  = np.empty([
-        grid_nfo['ncells'],
-        grid_nfo['ntim'], grid_nfo['nlev'],
+    out = np.zeros([
+        gv.globals_dict['grid_nfo']['ncells'],
+        gv.globals_dict['grid_nfo']['ntim'],
+        gv.globals_dict['grid_nfo']['nlev'],
         l_vec, l_vec
         ])
-    data['gradient'].fill(0)
     info_bnd = 5000
-    for i in range(grid_nfo['ncells']):
+    for i in range(gv.globals_dict['grid_nfo']['ncells']):
         # chekc for correct key
         # define distance
         # assume circle pi r^2 => d= 2*sqrt(A/pi)
         if i == info_bnd:
-            print('progress: {} cells of {}').format(info_bnd, grid_nfo['ncells'])
+            print('progress: {} cells of {}').format(
+                info_bnd,
+                gv.globals_dict['grid_nfo']['ncells']
+            )
             info_bnd = info_bnd + 5000
 
 # rework for flexible length of array. Currently only horizontal gradients.
         # check for correct keys
-        neighs  = circ_dist_avg(data, grid_nfo, gradient_nfo, i, var)
-        area    = grid_nfo['coarse_area'][i]
-        d       = 2 * radius(area) * re
-        data['gradient'][i, :, :, 0, 0]   = central_diff(
-            neighs['U_hat'][:, :, 0], data['U_hat'][i, :, :], neighs['U_hat'][:, :, 1],
+        neighs = circ_dist_avg(i, var)
+        area = gv.globals_dict['grid_nfo']['coarse_area'][i]
+        d = 2 * radius(area) * r_e
+        out[i, :, :, 0, 0] = central_diff(
+            neighs['U_hat'][:, :, 0],
+            neighs['U_hat'][:, :, 1],
             d
-            )
-        data['gradient'][i, :, :, 0, 1]  = central_diff(
-            neighs['V_hat'][:, :, 0], data['V_hat'][i, :, :], neighs['V_hat'][:, :, 1],
+        )
+        out[i, :, :, 0, 1] = central_diff(
+            neighs['V_hat'][:, :, 0],
+            neighs['V_hat'][:, :, 1],
             d
-            )
-        data['gradient'][i, :, :, 1, 0]   = central_diff(
-            neighs['U_hat'][:, :, 2], data['U_hat'][i, :, :], neighs['U_hat'][:, :, 3],
+        )
+        out[i, :, :, 1, 0] = central_diff(
+            neighs['U_hat'][:, :, 2],
+            neighs['U_hat'][:, :, 3],
             d
-            )
-        data['gradient'][i, :, :, 1, 1]   = central_diff(
-            neighs['V_hat'][:, :, 2], data['V_hat'][i, :, :], neighs['V_hat'][:, :, 3],
+        )
+        out[i, :, :, 1, 1] = central_diff(
+            neighs['V_hat'][:, :, 2],
+            neighs['V_hat'][:, :, 3],
             d
-            )
+        )
 
-    return data
+    return out
 
 # changed according to new array structure
 # (nothing to do)
-def central_diff(xl, x, xr, d):
-        # no turning necessary here since gradients are along lats / longs
+def central_diff(xl, xr, d):
 
-        return np.divide(np.subtract(xl,xr), 2 * d)
+    return np.divide(np.subtract(xl, xr), 2 * d)
 
-        #return (xl-xr)/(2*d)
 
 # changed according to new array structure
 # (nothing to do)
 def radius(area):
     '''returns radius of circle on sphere in radians'''
-    re        = 6.37111*10**6
-    r         = np.sqrt(area/np.pi)/ re
+    r_e = 6.37111*10**6
+    r = np.sqrt(area / np.pi) / r_e
     return r
 
 # changed according to new array structure - check
-def circ_dist_avg(data, grid_nfo, gradient_nfo, i_cell, var):
+def circ_dist_avg(i_cell, var):
     values = {
-        name: np.empty(
-            [grid_nfo['ntim'], grid_nfo['nlev'], 4])
-            for name in var['vars']}
-    for name in var['vars']:
-        values[name].fill(0)
+        name: np.zeros([
+            gv.globals_dict['grid_nfo']['ntim'],
+            gv.globals_dict['grid_nfo']['nlev'],
+            4
+        ]) for name in var['vars']
+    }
     #how large is check radius?
     for j in range(4):
-        coords = gradient_nfo['coords'][i_cell, j, :]
-        member_idx = gradient_nfo['member_idx'][i_cell][j]
+        coords = gv.globals_dict['gradient_nfo']['coords'][i_cell, j, :]
+        member_idx = gv.globals_dict['gradient_nfo']['member_idx'][i_cell][j]
         member_idx = member_idx[np.where(member_idx > -1)[0]]
-        member_rad = gradient_nfo['member_rad'][i_cell][j]
+        member_rad = gv.globals_dict['gradient_nfo']['member_rad'][i_cell][j]
     # compute distance weighted average of area weighted members:
-        members    = dop.get_members_idx(data, member_idx, var['vars'])
+        members = do.get_members_idx(gv.globals_dict['data_run'], member_idx, var['vars'])
         # if you suffer from boredom: This setup gives a lot of flexebility.
         #     may be transferred to other parts of this program.
         if 'vector' in var.iterkeys():
             #turn vectors
-            lats = np.array([grid_nfo['lat'][i] for i in member_idx])
-            lons = np.array([grid_nfo['lon'][i] for i in member_idx])
-            vec   = var['vector']
-            rot_vec = np.empty([
+            lats = np.array([gv.globals_dict['grid_nfo']['lat'][i] for i in member_idx])
+            lons = np.array([gv.globals_dict['grid_nfo']['lon'][i] for i in member_idx])
+            vec = var['vector']
+            rot_vec = np.zeros([
                 len(vec),
                 len(member_idx),
-                grid_nfo['ntim'],
-                grid_nfo['nlev']])
-            rot_vec.fill(0)
+                gv.globals_dict['grid_nfo']['ntim'],
+                gv.globals_dict['grid_nfo']['nlev']
+            ])
             plon, plat = get_polar(coords[0], coords[1])
-            rot_vec[:,:,:,:]  =  rotate_members_to_local(
-                lons, lats, plon, plat,
-                members[vec[0]][:,:,:], members[vec[1]][:,:,:])
-            members[vec[0]]   = rot_vec[0,:,:,:]
-            members[vec[1]]   = rot_vec[1,:,:,:]
-        helper = dist_avg(members, member_idx, member_rad, grid_nfo, var['vars'])
+            rot_vec[:, :, :, :] = rotate_members_to_local(
+                lons,
+                lats,
+                plon,
+                plat,
+                members[vec[0]][:, :, :],
+                members[vec[1]][:, :, :]
+            )
+            members[vec[0]] = rot_vec[0, :, :, :]
+            members[vec[1]] = rot_vec[1, :, :, :]
+        helper = dist_avg(
+            members,
+            member_idx,
+            member_rad,
+            var['vars']
+        )
         if 'vector' in var.iterkeys():
-            rot_vec =rotate_single_to_global(
-                coords[0], coords[1],
-                helper[vec[0]][:,:], helper[vec[1]][:,:])
-            helper[vec[0]]   = rot_vec[0]
-            helper[vec[1]]   = rot_vec[1]
+            rot_vec = rotate_single_to_global(
+                coords[0],
+                coords[1],
+                helper[vec[0]][:, :],
+                helper[vec[1]][:, :]
+            )
+            helper[vec[0]] = rot_vec[0]
+            helper[vec[1]] = rot_vec[1]
 
         for name in var['vars']:
-            values[name][:, :, j]   = helper[name]
+            values[name][:, :, j] = helper[name]
 
     return values
 
 # changed according to new array structure
 # (nothing to do)
-def dist_avg(members, idxcs, radii, grid_nfo, vars):
-    len_i  = len(idxcs)
+def dist_avg(members, idxcs, radii, variables):
+    len_i = len(idxcs)
     # define weights.
-    weight = np.empty([len_i])
-    weight.fill(0)
+    weight = np.zeros([len_i])
     factor = 0
     for i in range(len_i):
-        weight[i] = grid_nfo['cell_area'][idxcs[i]]* radii[i]
-        factor    = factor + weight[i]
+        weight[i] = gv.globals_dict['grid_nfo']['cell_area'][idxcs[i]] * radii[i]
+        factor = factor + weight[i]
     # compute distance averages.
-    sum    = {name : 0 for name in vars}
-    for k in vars:
+    sum_of = {name : 0 for name in variables}
+    for k in variables:
         for i in range(len_i):
-            sum[k]    = sum[k] + members[k][i]*weight[i]
-        sum[k]    = sum[k]/factor
+            sum_of[k] = sum_of[k] + members[k][i]*weight[i]
+        sum_of[k] = sum_of[k]/factor
 
-    return sum
+    return sum_of
 
 # changed according to new array structure
 # (nothing to do)
 def arc_len(p_x, p_y):
     '''computes length of geodesic arc on a sphere (in rad)'''
     r = np.arccos(
-        np.sin(p_x[1])* np.sin(p_y[1])
-       +np.cos(p_x[1])* np.cos(p_y[1]) * np.cos(p_y[0]-p_x[0])
-       )
+        np.sin(p_x[1]) * np.sin(p_y[1])
+        + np.cos(p_x[1]) * np.cos(p_y[1]) * np.cos(p_y[0] - p_x[0])
+    )
     return r
-
-# changed according to new array structure
-# (nothing to do)
-def turn_spherical(lonlat, grid_nfo):
-    lons  = grid_nfo['lon']
-    lats  = grid_nfo['lat']
-    n_lats = np.empty(len(lats))
-    n_lats.fill(0.0)
-    n_lons = np.empty(len(lats))
-    n_lats.fill(0.0)
-    turn_by   = np.empty([2])
-    turn_by[:]= lonlat[:]
-    turn_by   = turn_by* -1
-    n_lons    = np.arctan2(
-        np.sin(lons) , np.tan(lats) * np.sin(turn_by[1])
-        + np.cos(lons) * np.cos(turn_by[1])) - turn_by[0]
-
-    n_lats    = np.arcsin(
-        np.cos(turn_by[1]) * np.sin(lats)
-        - np.sin(turn_by[1]) * np.cos(lats) * np.cos(lons))
-
-    for i in range(len(n_lons)):
-        if not (-np.pi <= n_lons[i] <= np.pi):
-            if n_lons[i] < -np.pi:
-                n_lons[i]   = n_lons[i]+2*np.pi
-            if np.pi < n_lons[i]:
-                n_lons[i]   = n_lons[i]-2*np.pi
-
-    return n_lons, n_lats
 
 # changed according to new array structure - check
 # (nothing to do)
 def mult(dataset):
-    dims= np.array([])
+    dims = np.array([])
     for val in dataset.itervalues():
-        if len(val.shape) >=len(dims):
+        if len(val.shape) >= len(dims):
             dims = val.shape
 
-    helper = np.empty(dims)
-    helper.fill(1)
+    helper = np.ones(dims)
     for data in dataset.itervalues():
         if data.shape == helper.shape:
             helper = np.multiply(helper, data)
         elif data.ndim == 1:
             if data.shape[0] == helper.shape[0]:
-                helper = np.multiply(helper,data[:, np.newaxis, np.newaxis])
-                #    for i in range(data.shape[0]):
-                #        helper[i,:,:] = helper[i,:,:]*data[i]
+                helper = np.multiply(helper, data[:, np.newaxis, np.newaxis])
             elif data.shape[0] == helper.shape[1]:
                 helper = np.multiply(helper, data[np.newaxis, :, np.newaxis])
-                #    for i in range(data.shape[0]):
-                #        helper[:,i,:] = helper[:,i,:]*data[i]
             elif data.shape[0] == helper.shape[2]:
-                helper = np.multiply(helper,data[np.newaxis, np.newaxis, :])
-                #    for i in range(data.shape[0]):
-                #        helper[:,:,i] = helper[:,:,i]*data[i]
+                helper = np.multiply(helper, data[np.newaxis, np.newaxis, :])
             else:
-                    print 'I can not find a way to cast {} on {}'.format(data.shape,
-                        helper.shape)
+                print 'I can not find a way to cast {} on {}'.format(
+                    data.shape,
+                    helper.shape
+                )
         else:
-                print 'I can not find a way to cast {} on {}'.format(data.shape,
-                    helper.shape)
+            print 'I can not find a way to cast {} on {}'.format(data.shape,
+                helper.shape)
     return helper
 
 
@@ -505,18 +494,16 @@ def mult(dataset):
 def rotate_ca_members_to_local(lon, lat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
-    len_x  = x.shape[0]
-    x_tnd  = np.empty(x.shape)
-    y_tnd  = np.empty(y.shape)
-    x_tnd.fill(0)
-    y_tnd.fill(0)
-    plon, plat = get_polar(lon[0],lat[0])
+    len_x = x.shape[0]
+    x_tnd = np.zeros(x.shape)
+    y_tnd = np.zeros(y.shape)
+    plon, plat = get_polar(lon[0], lat[0])
     for i in range(len_x):
-            x_tnd[i,:,:], y_tnd[i,:,:]= rotate_vec_to_local(
-                plon, plat,
-                lon[i], lat[i],
-                x[i,:,:], y[i,:,:]
-                )
+        x_tnd[i, :, :], y_tnd[i, :, :] = rotate_vec_to_local(
+            plon, plat,
+            lon[i], lat[i],
+            x[i, :, :], y[i, :, :]
+        )
     return x_tnd, y_tnd
 
 # changed according to new array structure - check
@@ -524,17 +511,15 @@ def rotate_ca_members_to_local(lon, lat, x, y):
 def rotate_members_to_local(lon, lat, plon, plat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
-    len_x  = x.shape[0]
-    x_tnd  = np.empty(x.shape)
-    y_tnd  = np.empty(y.shape)
-    x_tnd.fill(0)
-    y_tnd.fill(0)
+    len_x = x.shape[0]
+    x_tnd = np.zeros(x.shape)
+    y_tnd = np.zeros(y.shape)
     for i in range(len_x):
-            x_tnd[i,:,:], y_tnd[i,:,:]= rotate_vec_to_local(
-                plon, plat,
-                lon[i], lat[i],
-                x[i,:,:], y[i,:,:]
-                )
+        x_tnd[i, :, :], y_tnd[i, :, :] = rotate_vec_to_local(
+            plon, plat,
+            lon[i], lat[i],
+            x[i, :, :], y[i, :, :]
+        )
     return x_tnd, y_tnd
 
 # changed according to new array structure - check
@@ -545,7 +530,7 @@ def rotate_single_to_local(lon, lat, x, y):
     # computing time.
 
     plon, plat = get_polar(lon, lat)
-    x_tnd, y_tnd  = rotate_vec_to_local(
+    x_tnd, y_tnd = rotate_vec_to_local(
         plon, plat,
         lon, lat,
         x, y)
@@ -556,17 +541,16 @@ def rotate_single_to_local(lon, lat, x, y):
 def rotate_ca_members_to_global(lon, lat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
-    len_x  = x.shape[0]
-    x_tnd  = np.empty(x.shape)
-    y_tnd  = np.empty(y.shape)
-    x_tnd.fill(0)
-    y_tnd.fill(0)
-    plon, plat = get_polar(lon[0],lat[0])
+    len_x = x.shape[0]
+    x_tnd = np.zeros(x.shape)
+    y_tnd = np.zeros(y.shape)
+    plon, plat = get_polar(lon[0], lat[0])
     for i in range(len_x):
-            x_tnd[i,:,:], y_tnd[i,:,:]= rotate_vec_to_global(
-                plon, plat,
-                lon[i], lat[i],
-                x[i,:,:], y[i,:,:])
+        x_tnd[i, :, :], y_tnd[i, :, :] = rotate_vec_to_global(
+            plon, plat,
+            lon[i], lat[i],
+            x[i, :, :], y[i, :, :]
+        )
     return x_tnd, y_tnd
 
 # changed according to new array structure - check
@@ -574,16 +558,15 @@ def rotate_ca_members_to_global(lon, lat, x, y):
 def rotate_members_to_global(lon, lat, plon, plat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
-    len_x  = x.shape[0]
-    x_tnd  = np.empty(x.shape)
-    y_tnd  = np.empty(y.shape)
-    x_tnd.fill(0)
-    y_tnd.fill(0)
+    len_x = x.shape[0]
+    x_tnd = np.zeros(x.shape)
+    y_tnd = np.zeros(y.shape)
     for i in range(len_x):
-            x_tnd[i,:,:], y_tnd[i,:,:]= rotate_vec_to_global(
-                plon, plat,
-                lon[i], lat[i],
-                x[i,:,:], y[i,:,:])
+        x_tnd[i, :, :], y_tnd[i, :, :] = rotate_vec_to_global(
+            plon, plat,
+            lon[i], lat[i],
+            x[i, :, :], y[i, :, :]
+        )
     return x_tnd, y_tnd
 
 
@@ -595,24 +578,25 @@ def rotate_single_to_global(lon, lat, x, y):
     # computing time.
 
     plon, plat = get_polar(lon, lat)
-    x_tnd, y_tnd  = rotate_vec_to_global(
+    x_tnd, y_tnd = rotate_vec_to_global(
         plon, plat,
         lon, lat,
-        x, y)
+        x, y
+    )
     return x_tnd, y_tnd
 
 # changed according to new array structure - check
 # (nothing to do)
 def get_polar(lon, lat):
-    plon   = 0.0
+    plon = 0.0
     if 0 < lon <= np.pi:
         plon = lon - np.pi
-    elif (-np.pi < lon < 0):
+    elif -np.pi < lon < 0:
         plon = lon + np.pi
     #else:
         # no turning needed here
 
-    plat   = np.pi/2
+    plat = np.pi/2
     if 0 < lat <= np.pi/2:
         plat = np.pi/2 - lat
     elif -np.pi/2 <= lat < 0:
@@ -625,33 +609,29 @@ def get_polar(lon, lat):
 
 # changed according to new array structure - check
 # (nothing to do)
-def rotate_vec_to_local(plon, plat, lon, lat, x,y):
+def rotate_vec_to_local(plon, plat, lon, lat, x, y):
     ''' rotates vectors using rotat_latlon_vec'''
-    x_tnd= np.empty(x.shape)
-    y_tnd= np.empty(y.shape)
-    x_tnd.fill(0)
-    y_tnd.fill(0)
+    x_tnd = np.zeros(x.shape)
+    y_tnd = np.zeros(y.shape)
 
-    sin_d, cos_d = rotate_latlon_vec(lon,lat,plon,plat)
+    sin_d, cos_d = rotate_latlon_vec(lon, lat, plon, plat)
 
-    x_tnd = x*cos_d -y*sin_d
-    y_tnd = x*sin_d +y*cos_d
+    x_tnd = x * cos_d - y * sin_d
+    y_tnd = x * sin_d + y * cos_d
 
     return x_tnd, y_tnd
 
 # changed according to new array structure - check
 # (nothing to do)
-def rotate_vec_to_global(plon, plat, lon, lat, x,y):
+def rotate_vec_to_global(plon, plat, lon, lat, x, y):
     ''' rotates vectors using rotate_latlon_vec'''
-    x_tnd= np.empty(x.shape)
-    y_tnd= np.empty(y.shape)
-    x_tnd.fill(0)
-    y_tnd.fill(0)
+    x_tnd = np.zeros(x.shape)
+    y_tnd = np.zeros(y.shape)
 
-    sin_d, cos_d = rotate_latlon_vec(lon,lat,plon,plat)
+    sin_d, cos_d = rotate_latlon_vec(lon, lat, plon, plat)
 
-    x_tnd = x*cos_d +y*sin_d
-    y_tnd =-x*sin_d +y*cos_d
+    x_tnd = x * cos_d + y * sin_d
+    y_tnd = -x * sin_d + y * cos_d
 
     return x_tnd, y_tnd
 
@@ -662,11 +642,10 @@ def rotate_latlon_vec(lon, lat, plon, plat):
         see Documentation of COSMOS pp. 27'''
 
     z_lamdiff = lon - plon
-    z_a       = np.cos(plat)*np.sin(z_lamdiff)
-    z_b       = np.cos(lat)*np.sin(plat)-np.sin(lat)*np.cos(plat)*np.cos(z_lamdiff)
-    z_sq      = np.sqrt(z_a*z_a + z_b*z_b)
-    sin_d     = z_a/z_sq
-    cos_d     = z_b/z_sq
+    z_a = np.cos(plat) * np.sin(z_lamdiff)
+    z_b = np.cos(lat) * np.sin(plat) - np.sin(lat) * np.cos(plat) * np.cos(z_lamdiff)
+    z_sq = np.sqrt(z_a * z_a + z_b * z_b)
+    sin_d = z_a / z_sq
+    cos_d = z_b / z_sq
 
     return sin_d, cos_d
-
