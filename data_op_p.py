@@ -63,7 +63,7 @@ def prepare_mp(num_procs):
 
     slices.append(slice((num_procs-1) * chunk_len, ncells))
 
-    iterator = [i for i in range(num_procs)]
+    iterator = [i for i in range(ncells)]
 
     update.up_mp(
         {

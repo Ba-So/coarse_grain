@@ -66,13 +66,15 @@ def area_avg(kind, var):
     if gv.mp.get('mp'):
         # go parallel
         pool = Pool(processes = gv.mp['n_procs'])
-        result = pool.map(mop.area_avg_mp, gv.mp['iterator'])
+        result = np.array(pool.map(area_avg_sub, gv.mp['iterator'], 10))
         # reattribute names to variables
-        for i, part in enumerate(result):
-            result[i] = { item : part[:, i,] for i, item in enumerate(name)}
-        # write variables to global file
-        dop.out_to_global(result)
+        out = {}
+        for i, item in enumerate(name):
+            out.update({item : result[:, i,]})
         del result
+        # write variables to global file
+        update.up_entry('data_run', out)
+        del out
 
     else:
         for i in range(gv.globals_dict['grid_nfo']['ncells']):

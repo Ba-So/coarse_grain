@@ -197,18 +197,15 @@ def perform(kwargs):
     print('--------------')
     print('averaging variable fields')
     t2 = count_time()
-    print(time.time())
     do_the_average() #is ok maybe...
     t2 = count_time(t2)
-    print(time.time())
-    print(t2)
+    print('multiprocessing took {} minutes').format(t2)
     # '_bar' and '_hat' contain averages
     # compute gradient
     print('--------------')
     print('computing the gradients')
     t2 = count_time()
     print(time.time())
-
     do_the_gradients()
     t2 = count_time(t2)
     print(time.time())
@@ -328,7 +325,7 @@ if __name__ == '__main__':
             'ntim'                : data.dims['time'],
             'nlev'                : data.dims['lev_2'],
            # 'ncells'              : data.dims['cell'],
-            'ncells'              : 1000,
+            'ncells'              : 100000,
             'lat'                 : data['clat'].values,
             'lon'                 : data['clon'].values
             }
@@ -355,7 +352,7 @@ if __name__ == '__main__':
         del data_run # keep that thing clean!
 
         # preliminary work towards multiprocessing, not yet properly implemented
-        num_procs = 5
+        num_procs = 20
         update.up_mp(
             {
                 'mp' : True
