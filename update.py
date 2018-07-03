@@ -22,6 +22,15 @@ class Updater():
             gv.globals_dict[varn].pop(value, None)
         return None
 
+    def rm_all(self, varn):
+        keys = []
+        for key in gv.globals_dict[varn].iterkeys():
+            keys.append(key)
+
+        for key in keys:
+            gv.globals_dict[varn].pop(key, None)
+        return None
+
     def part(self, varn, values, indices):
         # expects values to be what?
         for key, array in values.iteritems():

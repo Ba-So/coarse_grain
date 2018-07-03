@@ -74,6 +74,7 @@ def area_avg(kind, var):
         del result
         # write variables to global file
         update.up_entry('data_run', out)
+        pool.close()
         del out
 
     else:
@@ -153,31 +154,40 @@ def area_avg_sub(i_cell):
 
 # changed according to new array structure - check
 # (nothing to do)
-def compute_flucts(values, variables, kind):
+def compute_flucts(values):
     '''computes the fluctuations relative to the hat quantities.'''
 
-    kwargs = {
-        'values' : values,
-        'vars' : variables
-        }
+    variables = gv.globals_dict['data_run']['fluctsof']
+
+    kind = gv.globals_dict['data_run']['kind']
     if kind == 'vec':
     #  func = ...
-        func = lambda kwargs: vector_flucts(**kwargs)
+
+        rot_vec = rotate_ca_members_to_local(
+            values['lon'],
+            values['lat'],
+            values[variables[0]][:, :, :],
+            values[variables[1]][:, :, :]
+        )
+
+        rot_hat = rotate_single_to_local(
+            values['lon'][0],
+            values['lat'][0],
+            values[variables[0] + '_hat'][:, :],
+            values[variables[1] + '_hat'][:, :]
+        )
+
+        for i, item in enumerate(variables):
+            values[item] = rot_vec[i]
+            values[item + '_hat'] = rot_hat[i]
+
     elif kind == 'scalar':
-    #  func = ...
-        func = lambda kwargs: scalar_flucts(**kwargs)
+        pass
+
     else:
-        sys.exit('ERROR: compute_flucts not ia valid "kind" {}').format(kwargs['kind'])
+        sys.exit('ERROR: compute_flucts not ia valid "kind" {}').format(kind)
 
-    values = func(kwargs)
-
-    return values
-
-# changed according to new array structure - check
-# (nothing to do)
-def scalar_flucts(values, variables):
-
-    for item in variables.iteritems():
+    for item in variables:
         values[item + '_f'] = np.subtract(
             values[item],
             values[item + '_hat'][np.newaxis, :]
@@ -186,70 +196,48 @@ def scalar_flucts(values, variables):
     return values
 
 # changed according to new array structure - check
-# (nothing to do)
-def vector_flucts(values, variables):
-    rot_vec = np.zeros([
-        len(variables),
-        len(gv.globals_dict['grid_nfo']['area_member_idx'][0]),
-        gv.globals_dict['grid_nfo']['ntim'],
-        gv.globals_dict['grid_nfo']['nlev']
-    ])
-    rot_vec[:, :, :, :] = rotate_ca_members_to_local(
-        values['lon'],
-        values['lat'],
-        values[variables[0]][:, :, :],
-        values[variables[1]][:, :, :]
-    )
-    rot_bar = np.zeros([
-        len(variables),
-        gv.globals_dict['grid_nfo']['ntim'],
-        gv.globals_dict['grid_nfo']['nlev']
-    ])
-    rot_bar[:, :, :] = rotate_single_to_local(
-        values['lon'][0],
-        values['lat'][0],
-        values[variables[0] + '_hat'][:, :],
-        values[variables[1] + '_hat'][:, :]
-    )
-    result = np.zeros([
-        len(variables),
-        len(gv.globals_dict['grid_nfo']['area_member_idx'][0]),
-        gv.globals_dict['grid_nfo']['ntim'],
-        gv.globals_dict['grid_nfo']['nlev']
-        ])
-    result = np.subtract(
-        rot_vec,
-        rot_bar[:, np.newaxis, :, :]
-    )
-    for i, item in enumerate(variables):
-        values[item + '_f'] = result[i, :, :, :]
+def compute_dyads(var):
+    update = up.Updater()
+    update.up_entry('data_run', var)
 
-    return values
+    if gv.mp.get('mp'):
+        pool = Pool(processes = gv.mp['n_procs'])
+        out = pool.map(compute_dyads_sub, gv.mp['iterator'], gv.mp['chunksize'])
+        pool.close()
+    else:
+        out = []
+        for i in range(gv.globals_dict['grid_nfo']['ncells']):
+            out.append(compute_dyads_sub(i))
 
-# changed according to new array structure - check
-def compute_dyads(values, i_cell, variables):
+    update.up_entry('data_run', {'dyad' : np.array(out)})
+
+
+def compute_dyads_sub(i_cell):
+
     '''computes the dyadic products of v'''
-    if all(key not in values for key in ['RHO']):
+    if all(key not in gv.globals_dict['data_run'] for key in ['RHO']):
         sys.exit('ERROR: compute_dyads, "RHO" missing in values')
     if all(key not in gv.globals_dict['grid_nfo'] for key in ['cell_area']):
         sys.exit('ERROR: compute_dyads, "cell_area" missing in grid_nfo')
 
+    var = gv.globals_dict['data_run']['vars']
+    dyad = gv.globals_dict['data_run']['dyad']
     # dimension of dyad
-    l_vec = len(variables)
 
-    # in case of first call build output file
-    # output slot, outgoing info
-    dyad = np.zeros([
-        l_vec,
-        l_vec,
-        gv.globals_dict['grid_nfo']['ntim'],
-        gv.globals_dict['grid_nfo']['nlev']
-    ])
+    # get area myembers
+    values = do.get_members('data_run', i_cell, var)
+    # add lat lon coordinates to values, and areas
+    values.update(do.get_members('grid_nfo', i_cell, ['lat', 'lon', 'cell_area']))
+    # get coarse values
+    for item in var[:2]:
+        values[item+'_hat'] = gv.globals_dict['data_run'][item+'_hat'][i_cell, :, :]
+    # compute fluctuations
+    values = compute_flucts(values)
 
     # helper, containing the constituents for computation
     constituents = []
-    for var in variables:
-        constituents.append(values[var])
+    for item in dyad:
+        constituents.append(values[item])
     constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
     product = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)
@@ -265,61 +253,65 @@ def compute_dyads(values, i_cell, variables):
     return dyad
 
 # changed according to new array structure
-def gradient():
+def gradient(var):
+    update = up.Updater()
 
-    var = {
-        'vars' :['U_hat', 'V_hat'],
-        'vector' :['U_hat', 'V_hat']
-        }
+    update.up_entry('data_run', {'var' : var})
 
-    r_e = 6.37111*10**6
+    if gv.mp.get('mp'):
+        pool = Pool(processes = gv.mp['n_procs'])
+        out = pool.map(gradient_sub, gv.mp['iterator'], 10)
+        pool.close()
+
+    else:
+        out = []
+        for i in range(gv.globals_dict['grid_nfo']['ncells']):
+            out.append(gradient_sub(i))
+
+    update.up_entry('data_run', {'gradient' : np.array(out)})
+
+    return None
+
+def gradient_sub(i_cell):
+    # chekc for correct key
+    # define distance
+    # assume circle pi r^2 => d= 2*sqrt(A/pi)
+    var = gv.globals_dict['data_run']['var']
     l_vec = len(var['vars'])
     out = np.zeros([
-        gv.globals_dict['grid_nfo']['ncells'],
+        l_vec, l_vec,
         gv.globals_dict['grid_nfo']['ntim'],
-        gv.globals_dict['grid_nfo']['nlev'],
-        l_vec, l_vec
-        ])
-    info_bnd = 5000
-    for i in range(gv.globals_dict['grid_nfo']['ncells']):
-        # chekc for correct key
-        # define distance
-        # assume circle pi r^2 => d= 2*sqrt(A/pi)
-        if i == info_bnd:
-            print('progress: {} cells of {}').format(
-                info_bnd,
-                gv.globals_dict['grid_nfo']['ncells']
-            )
-            info_bnd = info_bnd + 5000
+        gv.globals_dict['grid_nfo']['nlev']
+    ])
 
-# rework for flexible length of array. Currently only horizontal gradients.
-        # check for correct keys
-        neighs = circ_dist_avg(i, var)
-        area = gv.globals_dict['grid_nfo']['coarse_area'][i]
-        d = 2 * radius(area) * r_e
-        out[i, :, :, 0, 0] = central_diff(
-            neighs['U_hat'][:, :, 0],
-            neighs['U_hat'][:, :, 1],
-            d
-        )
-        out[i, :, :, 0, 1] = central_diff(
-            neighs['V_hat'][:, :, 0],
-            neighs['V_hat'][:, :, 1],
-            d
-        )
-        out[i, :, :, 1, 0] = central_diff(
-            neighs['U_hat'][:, :, 2],
-            neighs['U_hat'][:, :, 3],
-            d
-        )
-        out[i, :, :, 1, 1] = central_diff(
-            neighs['V_hat'][:, :, 2],
-            neighs['V_hat'][:, :, 3],
-            d
-        )
+    r_e = 6.37111*10**6
+    # rework for flexible length of array. Currently only horizontal gradients.
+    # check for correct keys
+    neighs = circ_dist_avg(i_cell, var)
+    area = gv.globals_dict['grid_nfo']['coarse_area'][i_cell]
+    d = 2 * radius(area) * r_e
+    out[0, 0, :, :] = central_diff(
+        neighs['U_hat'][:, :, 0],
+        neighs['U_hat'][:, :, 1],
+        d
+    )
+    out[0, 1, :, :] = central_diff(
+        neighs['V_hat'][:, :, 0],
+        neighs['V_hat'][:, :, 1],
+        d
+    )
+    out[1, 0, :, :] = central_diff(
+        neighs['U_hat'][:, :, 2],
+        neighs['U_hat'][:, :, 3],
+        d
+    )
+    out[1, 1, :, :] = central_diff(
+        neighs['V_hat'][:, :, 2],
+        neighs['V_hat'][:, :, 3],
+        d
+    )
 
     return out
-
 # changed according to new array structure
 # (nothing to do)
 def central_diff(xl, xr, d):
@@ -351,7 +343,7 @@ def circ_dist_avg(i_cell, var):
         member_idx = member_idx[np.where(member_idx > -1)[0]]
         member_rad = gv.globals_dict['gradient_nfo']['member_rad'][i_cell][j]
     # compute distance weighted average of area weighted members:
-        members = do.get_members_idx(gv.globals_dict['data_run'], member_idx, var['vars'])
+        members = do.get_members_idx('data_run', member_idx, var['vars'])
         # if you suffer from boredom: This setup gives a lot of flexebility.
         #     may be transferred to other parts of this program.
         if 'vector' in var.iterkeys():

@@ -1,6 +1,11 @@
+#!/usr/bin/env python
+# coding=utf-8
 # This is the library of physics computations need in coarse_grain
-
 import numpy as np
+from multiprocessing import Pool
+import global_vars as gv
+import update as up
+
 
 def potT_to_T_pressure(vpT, P, atmos):
     # so far only for the dry atmosphere!!
@@ -32,8 +37,36 @@ def potT_to_T_pressure(vpT, P, atmos):
     T = np.multiply(vpT, P)
 
     return T
+def potT_to_T_exner():
+    update = up.Updater()
 
-def potT_to_T_exner(vpT, Exner):
+    if gv.mp.get('mp'):
+        pool = Pool(processes = gv.mp['n_procs'])
+        result = (pool.map(potT_to_T_exner_sub, gv.mp['slices']))
+
+        out = np.zeros(
+            [
+                gv.globals_dict['grid_nfo']['ncells'],
+                gv.globals_dict['grid_nfo']['ntim'],
+                gv.globals_dict['grid_nfo']['nlev']
+            ]
+        )
+        for i in range(len(gv.mp['slices'])):
+            out[gv.mp['slices'][i]] = result[i]
+        pool.close()
+        del result
+
+    else:
+        out = []
+        for i in range(gv.globals_dict['grid_nfo']['ncells']):
+            out.append(potT_to_T_exner_sub(i))
+
+    update.up_entry('data_run', {'T' : np.array(out)})
+    print(np.array(out).shape)
+    del out
+    return None
+
+def potT_to_T_exner_sub(i_slice):
     '''
     Computes the Temperature from given virtual potential Temperature
     and Exner Pressure values
@@ -41,8 +74,52 @@ def potT_to_T_exner(vpT, Exner):
     Exner - Exner Pressure
     Formula: T = Exner * vpT
     '''
-    T = np.multiply(vpT, Exner)
+
+    T = np.multiply(
+        gv.globals_dict['data_run']['THETA_V'][i_slice],
+        gv.globals_dict['data_run']['EXNER'][i_slice]
+    )
 
     return T
 
+def turb_fric():
+    update = up.Updater()
+
+    if gv.mp.get('mp'):
+        pool = Pool(processes = gv.mp['n_procs'])
+        result = (pool.map(turb_fric_sub, gv.mp['slices']))
+        out = np.zeros(
+            [
+                gv.globals_dict['grid_nfo']['ncells'],
+                gv.globals_dict['grid_nfo']['ntim'],
+                gv.globals_dict['grid_nfo']['nlev']
+            ]
+        )
+        for i in range(len(gv.mp['slices'])):
+            out[gv.mp['slices'][i]] = result[i]
+        pool.close()
+        del result
+    else:
+        out = []
+        for i in range(gv.globals_dict['grid_nfo']['ncells']):
+            out.append(potT_to_T_exner_sub(i))
+
+    update.up_entry('data_run', {'turb_fric' : np.array(out)})
+    del out
+    return None
+
+
+def turb_fric_sub(i_slice):
+    t_fric = np.einsum(
+        'kijlm,kijlm->klm',
+        gv.globals_dict['data_run']['dyad'][i_slice],
+        gv.globals_dict['data_run']['gradient'][i_slice]
+    )
+
+    t_fric = -1 * np.divide(
+        t_fric,
+        gv.globals_dict['data_run']['T_bar'][i_slice]
+    )
+
+    return t_fric
 

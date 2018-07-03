@@ -23,7 +23,6 @@ def count_time(t1=0):
     elif t1 != 0:
         t2 = time.time()
         t1 = t2-t1
-        print('Time gone {}').format(t1)
     else:
         print('Something went horribly wrong!')
     return t1
@@ -129,9 +128,14 @@ def neighs_and_grad(chunk):
 # changed according to new array structure
 def do_the_gradients():
     '''computes the gradients of u and v'''
-    update = up.Updater()
 
-    update.up_entry('data_run', {'gradient':  mo.gradient()})
+    var = {
+        'vars' :['U_hat', 'V_hat'],
+        'vector' :['U_hat', 'V_hat']
+        }
+
+
+    mo.gradient(var)
 
     print('mean velocity gradient u_x: {}').format(np.mean(gv.globals_dict['data_run']['gradient'][0, 0]))
     print('mean velocity gradient u_y: {}').format(np.mean(gv.globals_dict['data_run']['gradient'][0, 1]))
@@ -144,53 +148,24 @@ def do_the_dyads():
     '''computes the dyadic product of uv and rho plus averaging'''
     # check if everything is there
     needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar']
-    if not all(need in data for need in needs):
-        this = [need for need in needs if need not in data]
+    if not all(need in gv.globals_dict['data_run'] for need in needs):
+        this = [need for need in needs if need not in gv.globals_dict['data_run']]
         sys.exit('ERROR: do_the_dyads I miss quantities to do the computing {}'.format(this))
       # define kwargs for computation
-    kwargs = {
+    var = {
         'vars'    : ['U', 'V', 'RHO'],
-        'UV'      : {'variables'   : ['U', 'V'],
-                     'kind'   : 'vec'
-                    },
-        'dyad'    : {'variables'   : ['U_f', 'V_f']
-                    }
+        'fluctsof'   : ['U', 'V'],
+        'kind'   : 'vec',
+        'dyad'    : ['U_f', 'V_f']
         }
 
-      #start cellwise iteration
-    doprint = 5000
-    if not('dyad' in data):
-        l_vec = len(kwargs['UV']['vars'])
-        # in case of first call build output file
-        # output slot, outgoing info
-        print('creating array values["dyad"]')
-        out = np.zeros([
-            grid_nfo['ncells'],
-            l_vec,
-            l_vec,
-            grid_nfo['ntim'],
-            grid_nfo['nlev']
-        ])
+    mo.compute_dyads(var)
 
-    for i in range(grid_nfo['ncells']):
-        if i == doprint:
-            print('cell {} of {}').format(i, grid_nfo['ncells'])
-            doprint = doprint + 5000
-        # get area members
-        values = do.get_members('data_run', i, kwargs['vars'])
-        # add lat lon coordinates to values, and areas
-        values.update(do.get_members('grid_nfo', i, ['lat', 'lon', 'cell_area']))
-        # get coarse values
-        for var in kwargs['vars'][:2]:
-            values[var+'_hat'] = data[var+'_hat'][i, :, :]
-        # compute fluctuations
-        values = mo.compute_flucts(values, **kwargs['UV'])
-        out[i, :, :, :, :] = mo.compute_dyads(values, i, **kwargs['dyad'])
-
-    return data
+    return None
 
 # changed according to new array structure - check
 def perform(kwargs):
+    t1 = count_time()
     update = up.Updater()
     '''performs the compuations neccessary'''
     # compute u and v hat and bar
@@ -205,43 +180,26 @@ def perform(kwargs):
     print('--------------')
     print('computing the gradients')
     t2 = count_time()
-    print(time.time())
     do_the_gradients()
     t2 = count_time(t2)
-    print(time.time())
+    print(t2)
+
    # print('Speedup: {}').format(t2-t1)
     # 'gradient' [ncells, 0:1, 0:1, ntim, nlev]
     # 0:1 : d/dx d/dy; 0:1 : u, v
     # compute and average the dyads plus comute their primes
     print('--------------')
     print('computing the dyads')
+    #update.up_mp({'mp' : False})
     do_the_dyads()
+
     # 'dyad' [ncells, ntim, nlev, 0:1, 0:1]
     for key in gv.globals_dict['data_run'].iterkeys():
         print key
     print('--------------')
     print('computing the turbulent friction')
-    update.up_entry(
-        'data_run',
-        {
-            'turb_fric' : np.zeros([
-                gv.globals_dict['grid_nfo']['ncells'],
-                gv.globals_dict['grid_nfo']['ntim'],
-                gv.globals_dict['grid_nfo']['nlev']
-            ])
-        }
-    )
 
-    update.up_entry(
-        'data_run',
-        {
-            'turb_fric' : np.einsum(
-                'klmij,klmij->klm',
-                gv.globals_dict['data_run']['dyad'],
-                gv.globals_dict['data_run']['gradient']
-            )
-        }
-    )
+    po.turb_fric()
 
     update.up_entry(
         'data_run',
@@ -251,13 +209,8 @@ def perform(kwargs):
         )}
     )
 
-    update.up_entry(
-        'data_run',
-        {'turb_fric' : -1 * np.divide(
-            gv.globals_dict['data_run']['turb_fric'],
-            gv.globals_dict['data_run']['T_bar']
-        )}
-    )
+    t1 = count_time(t1)
+    print('computation finished after {}').format(t1)
     return None
 
 if __name__ == '__main__':
@@ -316,16 +269,13 @@ if __name__ == '__main__':
         # read the data from file
         data = read_data(kwargs, i)
 
-        # define file output name
-        kwargs['files'][i] = kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings'])
 
         # update the grid_nfo
         grid_nfo = {
             'i_cell' : 0,
             'ntim'                : data.dims['time'],
             'nlev'                : data.dims['lev_2'],
-           # 'ncells'              : data.dims['cell'],
-            'ncells'              : 100000,
+            'ncells'              : data.dims['cell'],
             'lat'                 : data['clat'].values,
             'lon'                 : data['clon'].values
             }
@@ -364,13 +314,9 @@ if __name__ == '__main__':
         #compute Temperature T for computation
         print('-'*10)
         print('computing the Temperature field')
-        update.up_entry(
-            'data_run',
-            {'T' : po.potT_to_T_exner(
-                gv.globals_dict['data_run']['THETA_V'],
-                gv.globals_dict['data_run']['EXNER']
-            )}
-        )
+
+        po.potT_to_T_exner()
+
         update.rm_entry(
             'data_run',
             ['EXNER', 'THETA_V']
@@ -380,20 +326,22 @@ if __name__ == '__main__':
 
         # move cells axis back to original position.
         data_out = {}
-        for key, item in gv.globals_dict.iteritems():
-            data_out[key] = np.moveaxis(item, 0, -1)
+        keys_for_out=['turb_fric', 'turb_diss', 'T']
+        for key, item in gv.globals_dict['data_run'].iteritems():
+            if key in keys_for_out:
+                data_out[key] = np.moveaxis(item, 0, -1)
 
         update.up_entry('data_run', data_out)
         del data_out
 
 
         print('min {} and max {}').format(
-            np.min(gv.globals_dict['turb_fric']),
-            np.max(gv.globals_dict['turb_fric'])
+            np.min(gv.globals_dict['data_run']['turb_fric']),
+            np.max(gv.globals_dict['data_run']['turb_fric'])
         )
         # the question remains IF those are really entropy production rates...
         print('globally averaged entropy production rate: {}').format(
-            np.mean(gv.globals_dict['turb_fric'])
+            np.mean(gv.globals_dict['data_run']['turb_fric'])
         )
 
         # there may yet be a more concise and effective way to do this.
@@ -401,19 +349,21 @@ if __name__ == '__main__':
         # just write to file whatever we needed...
 
         data = read_data(kwargs, i)
+        # define file output name
+        kwargs['files'][i] = kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings'])
 
         t_fric = xr.DataArray(
-            gv.globals_dict['turb_fric'],
+            gv.globals_dict['data_run']['turb_fric'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         t_diss = xr.DataArray(
-            gv.globals_dict['turb_diss'],
+            gv.globals_dict['data_run']['turb_diss'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         T = xr.DataArray(
-            gv.globals_dict['T'],
+            gv.globals_dict['data_run']['T'],
             dims = ['time', 'lev_2', 'cell']
         )
 
@@ -422,6 +372,9 @@ if __name__ == '__main__':
         data = data.assign(T = T)
 
         cio.write_netcdf(kwargs['files'][i], data)
+
+        del data, T, t_fric, t_diss
+        update.rm_all('data_run')
 
 
 # make rho and v Grid, weigh them

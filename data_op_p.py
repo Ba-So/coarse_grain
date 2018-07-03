@@ -42,8 +42,9 @@ def prepare_mp(num_procs):
 
     update = up.Updater()
     ncells = gv.globals_dict['grid_nfo']['ncells']
+    chunksize = 10
 
-    chunk_len = ncells // num_procs
+    chunk_len = ncells // chunksize
 
     last_chunk = chunk_len + ncells % num_procs
 
@@ -63,7 +64,9 @@ def prepare_mp(num_procs):
 
     slices.append(slice((num_procs-1) * chunk_len, ncells))
 
-    iterator = [i for i in range(ncells)]
+    iterator = []
+    for i in range(ncells):
+        iterator.append(i)
 
     update.up_mp(
         {
@@ -72,7 +75,8 @@ def prepare_mp(num_procs):
             'n_procs' : num_procs,
             'chunk_len' : chunk_len,
             'last_chunk': last_chunk,
-            'iterator' : iterator
+            'iterator' : iterator,
+            'chunksize' : chunksize
         }
     )
 
