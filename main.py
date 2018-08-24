@@ -14,6 +14,7 @@ import phys_op as po
 import global_vars as gv
 import update as up
 import xarray as xr
+
 from multiprocessing import Pool
 
 # the main file
@@ -200,11 +201,22 @@ def perform(kwargs):
     print('computing the turbulent friction')
 
     po.turb_fric()
+    print('--------------')
+    print('computing the dissipation coeficient')
+    po.K()
 
     update.up_entry(
         'data_run',
-        {'turb_diss' : -1 * np.divide(
+        {'t_fric' : np.divide(
             gv.globals_dict['data_run']['turb_fric'],
+            gv.globals_dict['data_run']['T_bar']
+        )}
+    )
+
+    update.up_entry(
+        'data_run',
+        {'t_diss' : np.divide(
+            gv.globals_dict['data_run']['t_fric'],
             gv.globals_dict['data_run']['RHO_bar']
         )}
     )
@@ -220,15 +232,21 @@ if __name__ == '__main__':
         'experiment' : 'BCW_CG_15_days',
         'file_name' : 'time_slice',
         'num_rings' : 3,
-        'num_files' : 9
+        'num_files' : 1
     }
     kwargs['filep'] = u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
     kwargs['files'] = [
         n for n in
         glob.glob(kwargs['filep']+kwargs['file_name']+'_*.nc') if
         os.path.isfile(n)]
-
-    print kwargs['files']
+    new = []
+    for i, xfile in enumerate(kwargs['files']):
+        if not 'refined' in xfile:
+            new.append(xfile)
+    kwargs['files'] = new
+    del new
+    for xfile in kwargs['files']:
+        print(xfile)
     kwargs['variables'] = ['U', 'V', 'RHO', 'THETA_V', 'EXNER']
 
     if not kwargs['files']:
@@ -326,7 +344,7 @@ if __name__ == '__main__':
 
         # move cells axis back to original position.
         data_out = {}
-        keys_for_out=['turb_fric', 'turb_diss', 'T']
+        keys_for_out=['t_fric', 't_diss', 'T', 'K']
         for key, item in gv.globals_dict['data_run'].iteritems():
             if key in keys_for_out:
                 data_out[key] = np.moveaxis(item, 0, -1)
@@ -353,12 +371,17 @@ if __name__ == '__main__':
         kwargs['files'][i] = kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings'])
 
         t_fric = xr.DataArray(
-            gv.globals_dict['data_run']['turb_fric'],
+            gv.globals_dict['data_run']['t_fric'],
             dims = ['time', 'lev_2', 'cell']
         )
 
         t_diss = xr.DataArray(
-            gv.globals_dict['data_run']['turb_diss'],
+            gv.globals_dict['data_run']['t_diss'],
+            dims = ['time', 'lev_2', 'cell']
+        )
+
+        K = xr.DataArray(
+            gv.globals_dict['data_run']['K'],
             dims = ['time', 'lev_2', 'cell']
         )
 
@@ -370,10 +393,11 @@ if __name__ == '__main__':
         data = data.assign(t_fric = t_fric)
         data = data.assign(t_diss = t_diss)
         data = data.assign(T = T)
+        data = data.assign(K = K)
 
         cio.write_netcdf(kwargs['files'][i], data)
 
-        del data, T, t_fric, t_diss
+        del data, T, t_fric, t_diss, K
         update.rm_all('data_run')
 
 

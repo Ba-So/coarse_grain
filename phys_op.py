@@ -82,6 +82,55 @@ def potT_to_T_exner_sub(i_slice):
 
     return T
 
+def K():
+    update = up.Updater()
+
+    if gv.mp.get('mp'):
+        pool = Pool(processes = gv.mp['n_procs'])
+        result = (pool.map(K_sub, gv.mp['slices']))
+        out = np.zeros(
+            [
+                gv.globals_dict['grid_nfo']['ncells'],
+                gv.globals_dict['grid_nfo']['ntim'],
+                gv.globals_dict['grid_nfo']['nlev']
+            ]
+        )
+        for i in range(len(gv.mp['slices'])):
+            out[gv.mp['slices'][i]] = result[i]
+        pool.close()
+        del result
+    else:
+        out = []
+        for i in range(gv.globals_dict['grid_nfo']['ncells']):
+            out.append(K_sub(i))
+
+    update.up_entry('data_run', {'K' : out})
+
+def K_sub(i_slice):
+    # Todo: compute E^2 and F^2 and divide dyad ( rhov''v'') by rho(e^2+f^2)
+    E_sq = np.square(np.subtract(
+            gv.globals_dict['data_run']['gradient'][i_slice,0,0,:,], #dxu
+            gv.globals_dict['data_run']['gradient'][i_slice,1,1,:,]  #dyv
+        )
+    )
+
+    F_sq = np.square(
+        np.add(
+            gv.globals_dict['data_run']['gradient'][i_slice,0,1,:], #dxv
+            gv.globals_dict['data_run']['gradient'][i_slice,1,0,:]    #dyu
+        )
+    )
+
+    rho_EF = np.multiply(
+        gv.globals_dict['data_run']['RHO_bar'][i_slice],
+        np.add(E_sq, F_sq)
+    )
+
+    return np.divide(
+        gv.globals_dict['data_run']['turb_fric'][i_slice],
+        rho_EF
+    )
+
 def turb_fric():
     update = up.Updater()
 
@@ -102,23 +151,19 @@ def turb_fric():
     else:
         out = []
         for i in range(gv.globals_dict['grid_nfo']['ncells']):
-            out.append(potT_to_T_exner_sub(i))
+            out.append(turb_fric_sub(i))
 
-    update.up_entry('data_run', {'turb_fric' : np.array(out)})
+    update.up_entry('data_run', {'turb_fric' : -1 * np.array(out)})
     del out
     return None
 
 
 def turb_fric_sub(i_slice):
+    ''' computes \overline{rho v'' v''} ** nabla \hat{v}'''
     t_fric = np.einsum(
         'kijlm,kijlm->klm',
         gv.globals_dict['data_run']['dyad'][i_slice],
         gv.globals_dict['data_run']['gradient'][i_slice]
-    )
-
-    t_fric = -1 * np.divide(
-        t_fric,
-        gv.globals_dict['data_run']['T_bar'][i_slice]
     )
 
     return t_fric

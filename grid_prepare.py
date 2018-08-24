@@ -105,7 +105,8 @@ def define_hex_area(grid, num_rings):
     '''
 
     # number of hexagons in an area of num_rings of hexagons
-    num_hex   = 1 + 6 * num_rings * (num_rings + 1) / 2
+    num_hex   = mo.num_hex_from_rings(num_rings)
+
 
     # create array containing member information
     a_nei_idx = np.empty([num_hex, grid.dims['ncells']])

@@ -66,7 +66,7 @@ def area_avg(kind, var):
     if gv.mp.get('mp'):
         # go parallel
         pool = Pool(processes = gv.mp['n_procs'])
-        result = np.array(pool.map(area_avg_sub, gv.mp['iterator'], 10))
+        result = np.array(pool.map(area_avg_sub, gv.mp['iterator'], gv.mp['chunksize']))
         # reattribute names to variables
         out = {}
         for i, item in enumerate(name):
@@ -195,6 +195,40 @@ def compute_flucts(values):
 
     return values
 
+def trace(var):
+    ''' computes the trace of a matrix nxn = sum_i^n m_ii
+        var - dictionary
+        For future additions this function could -
+        technically - be turned into a function using a lambda argument.'''
+
+    update = up.Updater()
+    # in order to have var in the global memory for parallel computing
+    traces = []
+    for xvar in var.iteritems():
+        traces.append({})
+        update.up_entry('data_run', {'var' : xvar})
+        if gv.mp.get('mp'):
+            pool = Pool(processes = gv.mp['n_procs'])
+            out = pool.map(trace_sub, gv.mp['iterator'], gv.mp['chunksize'])
+            pool.close()
+        else:
+            out = []
+            for i in range(gv.globals_dict['grid_nfo']['ncells']):
+                out.append(trace_sub(i))
+        traces[xvar+'_trace'] = out
+
+    for xtrace, i in enumerate(traces):
+        update.up_entry('data_run', xtrace)
+
+def trace_sub(i_cell):
+    ''' this function does the actual work in computing the trace. Uses numpy.trace
+        by convetion the trace is computed over the first and second axis of the input.'''
+
+    xvar = gv.globals_dict['data_run']['var']
+    trace = np.trace(gv.globals_dict['data_run'][xvar][i_cell, :], axis1=0, axis2=1)
+
+    return trace
+
 # changed according to new array structure - check
 def compute_dyads(var):
     update = up.Updater()
@@ -290,21 +324,25 @@ def gradient_sub(i_cell):
     neighs = circ_dist_avg(i_cell, var)
     area = gv.globals_dict['grid_nfo']['coarse_area'][i_cell]
     d = 2 * radius(area) * r_e
+    # dxU
     out[0, 0, :, :] = central_diff(
         neighs['U_hat'][:, :, 0],
         neighs['U_hat'][:, :, 1],
         d
     )
+    #dxV
     out[0, 1, :, :] = central_diff(
         neighs['V_hat'][:, :, 0],
         neighs['V_hat'][:, :, 1],
         d
     )
+    #dyU
     out[1, 0, :, :] = central_diff(
         neighs['U_hat'][:, :, 2],
         neighs['U_hat'][:, :, 3],
         d
     )
+    #dyV
     out[1, 1, :, :] = central_diff(
         neighs['V_hat'][:, :, 2],
         neighs['V_hat'][:, :, 3],
@@ -643,3 +681,9 @@ def rotate_latlon_vec(lon, lat, plon, plat):
     cos_d = z_b / z_sq
 
     return sin_d, cos_d
+
+def num_hex_from_rings(num_rings):
+    '''returns number of hexagons in patch of hexagons with num_rings rings around it's center'''
+    num_hex = 1 + 6 * num_rings * (num_rings + 1) / 2
+    return num_hex
+
