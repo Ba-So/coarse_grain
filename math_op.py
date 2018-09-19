@@ -112,28 +112,28 @@ def area_avg_sub(i_cell):
         values[i].update({'cell_area' : areas['cell_area']})
 
     if var.get('vector'):
-        indx = []
-        for k in var['vector']:
-            for i, val in enumerate(values):
-                if k in val:
-                    indx.append(i)
+        for vector in var['vector']:
+            indx = []
+            for k in vector:
+                for i, val in enumerate(values):
+                    if k in val:
+                        indx.append(i)
 
-        rot_vec = np.zeros([
-            len(var['vector']),
-            areas['lat'].shape[0],
-            gv.globals_dict['grid_nfo']['ntim'],
-            gv.globals_dict['grid_nfo']['nlev']
-        ])
+            rot_vec = np.zeros([
+                len(vector),
+                areas['lat'].shape[0],
+                gv.globals_dict['grid_nfo']['ntim'],
+                gv.globals_dict['grid_nfo']['nlev']
+            ])
+            rot_vec[:, :, :, :] = rotate_ca_members_to_local(
+                areas['lon'],
+                areas['lat'],
+                values[indx[0]][vector[0]],
+                values[indx[1]][vector[1]]
+            )
 
-        rot_vec[:, :, :, :] = rotate_ca_members_to_local(
-            areas['lon'],
-            areas['lat'],
-            values[indx[0]][var['vector'][0]][:, :, :],
-            values[indx[1]][var['vector'][1]][:, :, :]
-        )
-
-        values[indx[0]][var['vector'][0]][:, :, :] = rot_vec[0, :, :, :]
-        values[indx[1]][var['vector'][1]][:, :, :] = rot_vec[1, :, :, :]
+            values[indx[0]][vector[0]][:, :, :] = rot_vec[0, :, :, :]
+            values[indx[1]][vector[1]][:, :, :] = rot_vec[1, :, :, :]
 
     for i, vals in enumerate(values):
         vals = mult(vals)
@@ -243,7 +243,8 @@ def compute_dyads(var):
         for i in range(gv.globals_dict['grid_nfo']['ncells']):
             out.append(compute_dyads_sub(i))
 
-    update.up_entry('data_run', {'dyad' : np.array(out)})
+    update.append_entry('data_run', {'dyad' : np.array(out)})
+    return None
 
 
 def compute_dyads_sub(i_cell):
@@ -255,7 +256,7 @@ def compute_dyads_sub(i_cell):
         sys.exit('ERROR: compute_dyads, "cell_area" missing in grid_nfo')
 
     var = gv.globals_dict['data_run']['vars']
-    dyad = gv.globals_dict['data_run']['dyad']
+    dyad_name = gv.globals_dict['data_run']['dyad_name']
     # dimension of dyad
 
     # get area myembers
@@ -263,15 +264,15 @@ def compute_dyads_sub(i_cell):
     # add lat lon coordinates to values, and areas
     values.update(do.get_members('grid_nfo', i_cell, ['lat', 'lon', 'cell_area']))
     # get coarse values
-    for item in var[:2]:
-        values[item+'_hat'] = gv.globals_dict['data_run'][item+'_hat'][i_cell, :, :]
+    for name in var[:2]:
+        values[name+'_hat'] = gv.globals_dict['data_run'][name+'_hat'][i_cell, :, :]
     # compute fluctuations
     values = compute_flucts(values)
 
     # helper, containing the constituents for computation
     constituents = []
-    for item in dyad:
-        constituents.append(values[item])
+    for name in dyad_name:
+        constituents.append(values[name])
     constituents = np.array(constituents)
     # helper as handle for avg_bar, values in it are multiplied and averaged over
     product = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)

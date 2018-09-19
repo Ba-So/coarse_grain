@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-
+# TO DO: parallelize. This speed is unbearable.
 import argparse
 from itertools import compress
 import numpy as np
@@ -205,9 +205,6 @@ def get_gradient_nfo(grid):
     cell_area = grid['cell_area'].values
     lon = grid['lon'].values
     lat = grid['lat'].values
-    print(lon.shape)
-    print(lat.shape)
-    print(lon[1])
 
     # compute the coordinates of the four corners for gradient
     print(' --------------')
@@ -431,7 +428,6 @@ def max_min_bounds(lonlat, r):
         else:
             bounds[0, 0, 1] = lon_min
             bounds[0, 1, 1] = lon_max
-
     return bounds
 
 if __name__ == '__main__':

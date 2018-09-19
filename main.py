@@ -84,8 +84,8 @@ def do_the_average():
     print('  ------------')
     print('  computing bar averages')
     var = {
-        'vars'      :[['U'], ['V'], ['T'], ['RHO']],
-        'vector'    :['U', 'V']
+        'vars'      :[['U'], ['V'], ['G1_X'], ['G1_Y'], ['T'], ['ZSTAR'], ['RHO']],
+        'vector'    :[['U', 'V'],['G1_X', 'G1_Y']]#
         }
     mo.area_avg('bar', var)
     # this must become more involved for mp
@@ -94,8 +94,8 @@ def do_the_average():
     print('  ------------')
     print('  computing hat averages')
     var = {
-        'vars'      :[['U'], ['V'], ['T']],
-        'vector'    :['U', 'V']
+        'vars'      :[['U'], ['V'], ['G1_X'], ['G1_Y'], ['T']],
+        'vector'    :[['U', 'V'], ['G1_X', 'G1_Y']]
         }
 
     mo.area_avg('hat', var)
@@ -147,22 +147,58 @@ def do_the_gradients():
 # changed according to new array structure - check
 def do_the_dyads():
     '''computes the dyadic product of uv and rho plus averaging'''
+    update = up.Updater()
+    update.up_entry('data_run', {'dyad' : []})
     # check if everything is there
     needs = ['U', 'U_bar', 'V', 'V_bar', 'RHO', 'RHO_bar']
     if not all(need in gv.globals_dict['data_run'] for need in needs):
         this = [need for need in needs if need not in gv.globals_dict['data_run']]
         sys.exit('ERROR: do_the_dyads I miss quantities to do the computing {}'.format(this))
+    ## Do the regular dyads now lands in position [0] of ['data_run']['dyads']
       # define kwargs for computation
     var = {
         'vars'    : ['U', 'V', 'RHO'],
         'fluctsof'   : ['U', 'V'],
         'kind'   : 'vec',
-        'dyad'    : ['U_f', 'V_f']
+        'dyad_name'    : ['U_f', 'V_f']
         }
 
     mo.compute_dyads(var)
+    update.rm_entry('data_run', ['U','V'])
+    ## Do the active wind dyads is written to [1]
+
+    var = {
+        'vars'    : ['G1_X', 'G1_Y', 'RHO'],
+        'fluctsof'   : ['G1_X', 'G1_Y'],
+        'kind'   : 'vec',
+        'dyad_name'    : ['G1_X_f', 'G1_Y_f']
+        }
+
+    mo.compute_dyads(var)
+    update.rm_entry('data_run', ['G1_X', 'G1_Y', 'RHO'])
 
     return None
+
+def do_turb_diss():
+    update = up.Updater()
+
+    var = {
+        'index' : 0,
+        'name' : 't_diss'
+        }
+    po.turb_diss(var)
+    var = {
+        'index' : 1,
+        'name' : 't_diss_ac'
+        }
+    po.turb_diss(var)
+    update.up_entry('data_run',
+                    {'t_diss_ac' : np.divide(
+                        gv.globals_dict['data_run']['t_diss_ac'][1],
+                        np.square(gv.globals_dict['data_run']['ZSTAR_bar'])
+                    )})
+    return None
+
 
 # changed according to new array structure - check
 def perform(kwargs):
@@ -175,7 +211,7 @@ def perform(kwargs):
     t2 = count_time()
     do_the_average() #is ok maybe...
     t2 = count_time(t2)
-    print('multiprocessing took {} minutes').format(t2)
+    print('multiprocessing took {} minutes').format(t2/60)
     # '_bar' and '_hat' contain averages
     # compute gradient
     print('--------------')
@@ -183,7 +219,7 @@ def perform(kwargs):
     t2 = count_time()
     do_the_gradients()
     t2 = count_time(t2)
-    print(t2)
+    print(t2/60)
 
    # print('Speedup: {}').format(t2-t1)
     # 'gradient' [ncells, 0:1, 0:1, ntim, nlev]
@@ -195,49 +231,41 @@ def perform(kwargs):
     do_the_dyads()
 
     # 'dyad' [ncells, ntim, nlev, 0:1, 0:1]
-    for key in gv.globals_dict['data_run'].iterkeys():
-        print key
     print('--------------')
-    print('computing the turbulent friction')
+    print('computing the turbulent disstion')
 
-    po.turb_fric()
+    do_turb_diss()
+
     print('--------------')
     print('computing the dissipation coeficient')
-    po.K()
+    po.K('t_diss')
+    po.K('t_diss_ac')
 
-    update.up_entry(
-        'data_run',
-        {'t_fric' : np.divide(
-            gv.globals_dict['data_run']['turb_fric'],
-            gv.globals_dict['data_run']['T_bar']
-        )}
-    )
+    update.up_entry('data_run', {
+        't_diss': gv.globals_dict['data_run']['t_diss'],
+        't_diss_ac': gv.globals_dict['data_run']['t_diss_ac'],
+    })
 
-    update.up_entry(
-        'data_run',
-        {'t_diss' : np.divide(
-            gv.globals_dict['data_run']['t_fric'],
-            gv.globals_dict['data_run']['RHO_bar']
-        )}
-    )
+    for key in gv.globals_dict['data_run'].iterkeys():
+        print key
 
     t1 = count_time(t1)
-    print('computation finished after {}').format(t1)
+    print('computation finished after {}').format(t1/60)
     return None
 
 if __name__ == '__main__':
    # kwargs = user()
     update = up.Updater()
     kwargs = {
-        'experiment' : 'BCW_CG_15_days',
-        'file_name' : 'time_slice',
-        'num_rings' : 3,
-        'num_files' : 1
+        'experiment' : 'BCWcold',
+        'file_name' : 'BCWcold_R2B07_slice_onestep',
+        'num_rings' : 4,
+        'num_files' : 10
     }
     kwargs['filep'] = u'/home1/kd031/projects/icon/experiments/'+kwargs['experiment']+'/'
     kwargs['files'] = [
         n for n in
-        glob.glob(kwargs['filep']+kwargs['file_name']+'_*.nc') if
+        glob.glob(kwargs['filep']+kwargs['file_name']+'.nc') if
         os.path.isfile(n)]
     new = []
     for i, xfile in enumerate(kwargs['files']):
@@ -247,7 +275,7 @@ if __name__ == '__main__':
     del new
     for xfile in kwargs['files']:
         print(xfile)
-    kwargs['variables'] = ['U', 'V', 'RHO', 'THETA_V', 'EXNER']
+    kwargs['variables'] = ['U', 'V', 'G1_X', 'G1_Y', 'ZSTAR', 'RHO', 'THETA_V', 'EXNER']
 
     if not kwargs['files']:
         sys.exit('Error:missing gridfiles or datafiles')
@@ -292,8 +320,8 @@ if __name__ == '__main__':
         grid_nfo = {
             'i_cell' : 0,
             'ntim'                : data.dims['time'],
-            'nlev'                : data.dims['lev_2'],
-            'ncells'              : data.dims['cell'],
+            'nlev'                : data.dims['lev'],
+            'ncells'              : data.dims['ncells'],
             'lat'                 : data['clat'].values,
             'lon'                 : data['clon'].values
             }
@@ -314,12 +342,14 @@ if __name__ == '__main__':
         # move last axisi to first position, (ncells to first position)
         for var in kwargs['variables']:
             data_run[var] = np.moveaxis(data[var].values, -1, 0)
+        for key in data_run.iterkeys():
+            print key
         #delete data this doubles the read operation but goes easy on memory
         del data # just to cleanup memory
         update.complete('data_run', data_run)
         del data_run # keep that thing clean!
 
-        # preliminary work towards multiprocessing, not yet properly implemented
+        # preliminary w20ork towards multiprocessing, not yet properly implemented
         num_procs = 20
         update.up_mp(
             {
@@ -340,26 +370,27 @@ if __name__ == '__main__':
             ['EXNER', 'THETA_V']
         )
 
-        perform(kwargs) #gibt ( dann) keinen output mehr, weil alles in global steht...
+        # Do it all
+        perform(kwargs)
 
         # move cells axis back to original position.
         data_out = {}
-        keys_for_out=['t_fric', 't_diss', 'T', 'K']
+        keys_for_out=['t_diss', 't_diss_ac', 'T', 'Kt_diss', 'Kt_diss_ac', 'U_hat', 'V_hat', 'RHO_bar']
         for key, item in gv.globals_dict['data_run'].iteritems():
             if key in keys_for_out:
                 data_out[key] = np.moveaxis(item, 0, -1)
-
+        update.rm_all('data_run')
         update.up_entry('data_run', data_out)
         del data_out
 
 
         print('min {} and max {}').format(
-            np.min(gv.globals_dict['data_run']['turb_fric']),
-            np.max(gv.globals_dict['data_run']['turb_fric'])
+            np.min(gv.globals_dict['data_run']['t_diss']),
+            np.max(gv.globals_dict['data_run']['t_diss'])
         )
         # the question remains IF those are really entropy production rates...
         print('globally averaged entropy production rate: {}').format(
-            np.mean(gv.globals_dict['data_run']['turb_fric'])
+            np.mean(gv.globals_dict['data_run']['t_diss'])
         )
 
         # there may yet be a more concise and effective way to do this.
@@ -370,34 +401,88 @@ if __name__ == '__main__':
         # define file output name
         kwargs['files'][i] = kwargs['files'][i][:-3]+'_refined_{}.nc'.format(kwargs['num_rings'])
 
-        t_fric = xr.DataArray(
-            gv.globals_dict['data_run']['t_fric'],
-            dims = ['time', 'lev_2', 'cell']
+        U_hat = xr.DataArray(
+            gv.globals_dict['data_run']['U_hat'],
+            dims = ['time', 'lev', 'ncells']
         )
+        U_hat.attrs['grid_type'] = "unstructured"
+        U_hat.attrs['long_name'] = "U density weighted coarse"
+        update.rm_entry('data_run', ['U_hat'])
+
+        V_hat = xr.DataArray(
+            gv.globals_dict['data_run']['V_hat'],
+            dims = ['time', 'lev', 'ncells']
+        )
+        V_hat.attrs['grid_type'] = "unstructured"
+        V_hat.attrs['long_name'] = "U density weighted coarse"
+        update.rm_entry('data_run', ['V_hat'])
+        RHO_bar = xr.DataArray(
+            gv.globals_dict['data_run']['RHO_bar'],
+            dims = ['time', 'lev', 'ncells']
+        )
+        RHO_bar.attrs['grid_type'] = "unstructured"
+        RHO_bar.attrs['long_name'] = "RHO coarse"
+        update.rm_entry('data_run', ['RHO_bar'])
 
         t_diss = xr.DataArray(
             gv.globals_dict['data_run']['t_diss'],
-            dims = ['time', 'lev_2', 'cell']
+            dims = ['time', 'lev', 'ncells']
         )
+        t_diss.attrs['grid_type'] = "unstructured"
+        t_diss.attrs['long_name'] = "turbulent dissipaion"
+        update.rm_entry('data_run', ['t_diss'])
+
+        t_diss_ac = xr.DataArray(
+            gv.globals_dict['data_run']['t_diss_ac'],
+            dims = ['time', 'lev', 'ncells']
+        )
+        t_diss_ac.attrs['grid_type'] = "unstructured"
+        t_diss_ac.attrs['long_name'] = "turbulent dissipation active"
+        update.rm_entry('data_run', ['t_diss_ac'])
 
         K = xr.DataArray(
-            gv.globals_dict['data_run']['K'],
-            dims = ['time', 'lev_2', 'cell']
+            gv.globals_dict['data_run']['Kt_diss'],
+            dims = ['time', 'lev', 'ncells']
         )
+        K.attrs['grid_type'] = "unstructured"
+        K.attrs['long_name'] = "K value"
+        update.rm_entry('data_run', ['Kt_diss'])
+
+        K_ac = xr.DataArray(
+            gv.globals_dict['data_run']['Kt_diss_ac'],
+            dims = ['time', 'lev', 'ncells']
+        )
+        K_ac.attrs['grid_type'] = "unstructured"
+        K_ac.attrs['long_name'] = "K value active"
+        update.rm_entry('data_run', ['Kt_diss_ac'])
 
         T = xr.DataArray(
             gv.globals_dict['data_run']['T'],
-            dims = ['time', 'lev_2', 'cell']
+            dims = ['time', 'lev', 'ncells']
         )
+        T.attrs['grid_type'] = "unstructured"
+        T.attrs['long_name'] = "Temperature"
+        update.rm_entry('data_run', ['T'])
 
-        data = data.assign(t_fric = t_fric)
+        data = data.assign(U_hat = U_hat)
+        del U_hat
+        data = data.assign(V_hat = V_hat)
+        del V_hat
+        data = data.assign(RHO_bar = RHO_bar)
+        del RHO_bar
         data = data.assign(t_diss = t_diss)
+        del t_diss
+        data = data.assign(t_diss_ac = t_diss_ac)
+        del t_diss_ac
         data = data.assign(T = T)
+        del T
         data = data.assign(K = K)
+        del K
+        data = data.assign(K_ac = K_ac)
+        del K_ac
 
         cio.write_netcdf(kwargs['files'][i], data)
 
-        del data, T, t_fric, t_diss, K
         update.rm_all('data_run')
 
 

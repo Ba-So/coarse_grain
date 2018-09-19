@@ -51,8 +51,8 @@ def potT_to_T_exner():
                 gv.globals_dict['grid_nfo']['nlev']
             ]
         )
-        for i in range(len(gv.mp['slices'])):
-            out[gv.mp['slices'][i]] = result[i]
+        for i, xslice in enumerate(gv.mp['slices']):
+            out[xslice] = result[i]
         pool.close()
         del result
 
@@ -82,8 +82,9 @@ def potT_to_T_exner_sub(i_slice):
 
     return T
 
-def K():
+def K(name):
     update = up.Updater()
+    update.up_entry('data_run', {'name' : name})
 
     if gv.mp.get('mp'):
         pool = Pool(processes = gv.mp['n_procs'])
@@ -95,16 +96,17 @@ def K():
                 gv.globals_dict['grid_nfo']['nlev']
             ]
         )
-        for i in range(len(gv.mp['slices'])):
-            out[gv.mp['slices'][i]] = result[i]
+        for i, xslice in enumerate(gv.mp['slices']):
+            out[xslice] = result[i]
         pool.close()
         del result
     else:
         out = []
         for i in range(gv.globals_dict['grid_nfo']['ncells']):
             out.append(K_sub(i))
-
-    update.up_entry('data_run', {'K' : out})
+    name = 'K' + name
+    print(name)
+    update.up_entry('data_run', {name : out})
 
 def K_sub(i_slice):
     # Todo: compute E^2 and F^2 and divide dyad ( rhov''v'') by rho(e^2+f^2)
@@ -127,16 +129,17 @@ def K_sub(i_slice):
     )
 
     return np.divide(
-        gv.globals_dict['data_run']['turb_fric'][i_slice],
+        gv.globals_dict['data_run'][gv.globals_dict['data_run']['name']][i_slice],
         rho_EF
     )
 
-def turb_fric():
+def turb_diss(var):
     update = up.Updater()
+    update.up_entry('data_run', var)
 
     if gv.mp.get('mp'):
         pool = Pool(processes = gv.mp['n_procs'])
-        result = (pool.map(turb_fric_sub, gv.mp['slices']))
+        result = (pool.map(turb_diss_sub, gv.mp['slices']))
         out = np.zeros(
             [
                 gv.globals_dict['grid_nfo']['ncells'],
@@ -144,25 +147,26 @@ def turb_fric():
                 gv.globals_dict['grid_nfo']['nlev']
             ]
         )
-        for i in range(len(gv.mp['slices'])):
-            out[gv.mp['slices'][i]] = result[i]
+        for i, xslice in enumerate(gv.mp['slices']):
+            out[xslice] = result[i]
         pool.close()
         del result
     else:
         out = []
-        for i in range(gv.globals_dict['grid_nfo']['ncells']):
-            out.append(turb_fric_sub(i))
+        for i in range(0, gv.globals_dict['grid_nfo']['ncells'], 2):
+            out.append(turb_diss_sub(slice(i,i+1)))
 
-    update.up_entry('data_run', {'turb_fric' : -1 * np.array(out)})
+    update.up_entry('data_run', {gv.globals_dict['data_run']['name'] : -1 * np.array(out)})
     del out
     return None
 
 
-def turb_fric_sub(i_slice):
+def turb_diss_sub(i_slice):
     ''' computes \overline{rho v'' v''} ** nabla \hat{v}'''
+    i_dyad = gv.globals_dict['data_run']['index']
     t_fric = np.einsum(
         'kijlm,kijlm->klm',
-        gv.globals_dict['data_run']['dyad'][i_slice],
+        gv.globals_dict['data_run']['dyad'][i_dyad][i_slice],
         gv.globals_dict['data_run']['gradient'][i_slice]
     )
 

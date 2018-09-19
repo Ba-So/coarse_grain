@@ -16,10 +16,15 @@ class Updater():
         gv.globals_dict[varn].update(values)
         return None
 
+    def append_entry(self, varn, values):
+        for key, item in values.iteritems():
+            gv.globals_dict[varn][key].append(item)
+
     def rm_entry(self, varn, values):
         # expects values to be dict
         for value in values:
-            gv.globals_dict[varn].pop(value, None)
+            if value in gv.globals_dict[varn]:
+                gv.globals_dict[varn].pop(value, None)
         return None
 
     def rm_all(self, varn):
