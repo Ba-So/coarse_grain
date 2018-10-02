@@ -539,8 +539,6 @@ def rotate_ca_members_to_local(lon, lat, x, y):
         )
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_members_to_local(lon, lat, plon, plat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -555,8 +553,6 @@ def rotate_members_to_local(lon, lat, plon, plat, x, y):
         )
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_single_to_local(lon, lat, x, y):
     # shouldn't be neccessary. The entropy production value should remain the same
     # independent rotation back should therefore not be neccessary and additional
@@ -569,8 +565,6 @@ def rotate_single_to_local(lon, lat, x, y):
         x, y)
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_ca_members_to_global(lon, lat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -586,8 +580,6 @@ def rotate_ca_members_to_global(lon, lat, x, y):
         )
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_members_to_global(lon, lat, plon, plat, x, y):
     # takes in the array of number of hexagons
     #, where x and y contain [num_hex, ntim, nlev] values
@@ -603,8 +595,6 @@ def rotate_members_to_global(lon, lat, plon, plat, x, y):
     return x_tnd, y_tnd
 
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_single_to_global(lon, lat, x, y):
     # shouldn't be neccessary. The entropy production value should remain the same
     # independent rotation back should therefore not be neccessary and additional
@@ -618,8 +608,6 @@ def rotate_single_to_global(lon, lat, x, y):
     )
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def get_polar(lon, lat):
     plon = 0.0
     if 0 < lon <= np.pi:
@@ -640,8 +628,6 @@ def get_polar(lon, lat):
     return plon, plat
 
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_vec_to_local(plon, plat, lon, lat, x, y):
     ''' rotates vectors using rotat_latlon_vec'''
     x_tnd = np.zeros(x.shape)
@@ -654,8 +640,6 @@ def rotate_vec_to_local(plon, plat, lon, lat, x, y):
 
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_vec_to_global(plon, plat, lon, lat, x, y):
     ''' rotates vectors using rotate_latlon_vec'''
     x_tnd = np.zeros(x.shape)
@@ -668,8 +652,6 @@ def rotate_vec_to_global(plon, plat, lon, lat, x, y):
 
     return x_tnd, y_tnd
 
-# changed according to new array structure - check
-# (nothing to do)
 def rotate_latlon_vec(lon, lat, plon, plat):
     '''gives entries of rotation matrix for vector rotation
         see Documentation of COSMOS pp. 27'''
