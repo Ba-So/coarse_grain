@@ -1,23 +1,20 @@
 #!/usr/bin/env python
 # coding=utf-8
 
-class math_mod():
+def avg_bar(data, c_area, ret):
+    """computes the bar average of data"""
+    vals = np.sum(self.data[data], 0)
+    ret[:] = np.divide(vals, self.coarse_area)
 
-    def avg_bar(self, data):
-        """computes the bar average of data"""
-        vals = np.sum(self.data[data], 0)
-        self.data_bar[data] = np.divide(vals, self.coarse_area)
-        return
+def avg_hat(data, c_area, rho, rho_bar, ret):
+    """computes the hat average of data"""
+    vals = np.sum(np.multiply(data, rho, 0))
+    ret[:] = np.divide(vals, (c_area, rho_bar))
 
-    def avg_hat(self, data):
-        """computes the hat average of data"""
-        vals = np.sum(np.multiply(self.data[data], self.rho, 0))
-        self.data_hat[data] = np.divide(vals, (self.coarse_area, self.data_bar['rho']))
-        return
+def fluctsof(data, data_avg, ret):
+    """computes deviations from local mean"""
+    ret[:] = np.subtract(data_avg, data)
 
-    def fluctsof(self, data):
-        """computes deviations from local mean"""
-        self.data_flucts[data] = np.subtract(self.data_bar[data], self.data[data])
-        return
-
+def gradient():
+    """computes the gradient of a quantity using the information in gradient_nfo"""
 

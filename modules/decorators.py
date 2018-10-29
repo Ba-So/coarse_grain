@@ -4,7 +4,7 @@ import sys
 
 # Basic construction of my new class structured vision
 
-def requires_variables(needed):
+def ensure_inputs(needed):
     '''checks for presence of necessary variables'''
     def decorator(fn):
         def decorated(*args, **kwargs):
