@@ -2,9 +2,17 @@ import xarray as xr
 import data_op as dop
 import math_op as mop
 import itertools
+import glob
+import os
+from debugdecorators import PrintArgs, PrintReturn
 
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
+def glob_files(path, lookfor):
+    return [
+        n for n in
+        glob.glob(path + lookfor) if os.path.isfile(n)
+        ]
 
 def read_netcdfs(path):
     """
