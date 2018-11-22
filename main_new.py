@@ -1,17 +1,26 @@
 #!/usr/bin/env python
 # coding=utf-8
+import numpy as np
+import xarray as xr
 from modules.paralleldecorators import Mp, ParallelNpArray, shared_np_array
 from modules.debugdecorators import TimeThis, PrintArgs, PrintReturn
 from modules.cio import glob_files
-import xarray as xr
+from modules.
 
 mp = Mp(False, 2)
+class Operations(object):
+    def func():
+        #wrappers deciding how much information a part of the code recieves.
+        #either whole or only slices.
+        return func()
 
-class coarse_grain(object):
+class CoarseGrain(Operations):
 
     def __init__(self, path, experiment_name):
         self._ready = True
         self._path = path + experiment_name + '/'
+        self.data = {}
+        self.grid_nfo = {}
         self._experiment_name = experiment_name
         self.find_files(self._path, self._experiment_name)
         self.load_necessary(self._datafile, self._gridfile)
@@ -58,10 +67,14 @@ class coarse_grain(object):
         with xr.open_dataset(path) as ds:
             for variable in list:
                 try:
-                    setattr(self, variable, ds[variable].values)
+                    self.data.update({variable : shared_np_array(np.shape(ds[variable].values))})
+                    self.data[variable][:,] = ds[variable].values[:,]
                 except KeyError:
-                    print('{} not in file!'.format(variable))
+                    print('{} not in list!'.format(variable))
                     self.set_ready(False)
+
+    def execute(self):
+
 
 
 if __name__ == '__main__':

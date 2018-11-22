@@ -5,6 +5,7 @@ import itertools
 import glob
 import os
 from debugdecorators import PrintArgs, PrintReturn
+from paralleldecorators import shared_np_array
 
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
