@@ -34,6 +34,7 @@ def get_members(where, i, variables):
     return out
 
 # changed according to new array structure - check
+# has become superflous
 def get_members_idx(where, idxcs, variables):
     '''gets members of a hex_area'''
     # functional and used.
