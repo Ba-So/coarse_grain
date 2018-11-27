@@ -43,13 +43,21 @@ def avg_hat(data, rho, rho_bar, c_area, ret):
 #--------------------
 #@TimeThis
 @requires({
-    'full' : [],
-    'slice' : ['ret', 'data', 'data_avg']
+    'full' : ['data', 'grid_nfo'],
+    'slice' : ['ret', 'data_avg']
 })
 @ParallelNpArray(mp)
 def fluctsof(data, data_avg, ret):
     """computes deviations from local mean"""
     ret[:] = np.subtract(data_avg, data)
+#--------------------
+#@TimeThis
+@requires({
+    'full' : ['data', 'grid_nfo'],
+    'slice' : ['ret', 'data_avg']
+})
+def fluctsof_vec(data, grid_nfo, data_avg, ret):
+
 #--------------------
 #@TimeThis
 @requires({
