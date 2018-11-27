@@ -1,52 +1,31 @@
 #!/usr/bin/env python
 # coding=utf-8
-import xarray as xr
-from mo_operations import operations
+'''
+data_structs:
+    Due to the parallelization it became neccessary that individual
+    data points know their associated cellnumber, and, while we're at it,
+    their lat lon coordinates. The structure is a list of dicts.
+    >Waste full of memory, better pass array /w associated cell numbers?
+    >Maybe have this for better readability?
+    Form: data = [{},{},...,{},{}]
+    The Problem is conversion between them.
+    Array of array doesn't add any value since i may as well pass sevaral,
+    just decreases readability.
 
+    Research:
+        So looking turned out, that dicts consume way more memory in python.
+        I'd like to reduce that. Therefore I'm going to screw them out of my
+        code entirely, except for tiny things. Turns out having dictionaries
+        of stuff is expensivaly unneccesary.
 
-class coarse_graining():
+        Probably i'm going to throw readability over board. and just go array
+        of arrays? This is just a rundown of what I put where.
+    '''
 
-    def __init__(self, p_data, p_grid):
-        self.p_data = p_data
-        self.p_grid = p_grid
-        self.prepare()
-
-    def query_vars(self):
-        """prints variables in p_data on screen"""
-        return None
-
-    def prepare(self):
-        ds = xr.open_dataset(self.p_data)
-        self.ncells = ds.dims['ncells']
-        ds.close()
-        self.data = []
-        for cell in range(self.ncells):
-            self.cell_data.append(cell_data(cell, self.p_data, self.p))
-
-    def communicate(self):
-        """enables communication between cells"""
-
-
-
-
-
-
-class cell_data(operations):
-    """idea: have object cell, which contains all info and functions"""
-
-    def __init__(self, cell, p_data, p_grid):
-
-        self.cell_num = cell
-        self.p_data = p_data
-        self.p_grid = p_grid
-
-    def prepare(self):
-        ds = xr.open_dataset(self.p_grid)
-        self.coarse_members = ds['area_member_idx'].values[self.cell,:]
-        self.coarse_area = ds['coarse_area'].values[self.cell,:]
-        ds.close()
-
-    def get_neighbours(self):
-        """asks for info from neighbors"""
-
-
+grad_nfo = [len(ncells)] [len(4)] [[len(2)], [len(members)], [len(members)]]
+#           ncells      neighbors centercord member_idx      member_rad
+# neighbors: neighboring coordinates for gradient comp
+# member_idx: ncell index of members of neighboring patch
+# member_rad: distance of member from center
+coordinates = [len(ncells)] [len(2)]
+cell_area = [len(ncells)]
