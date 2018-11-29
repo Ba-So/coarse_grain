@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 import numpy as np
+import itertools
 from debugdecorators import TimeThis, PrintArgs
 from paralleldecorators import Mp, ParallelNpArray
 from functiondecorators import requires
@@ -19,28 +20,105 @@ def func(ina, inb, ret):
 #@TimeThis
 @requires({
     'full' : ['data'],
-    'slice' : ['c_area', 'ret']
+    'slice' : ['c_area', 'c_mem_idx', 'ret']
 })
 @ParallelNpArray(mp)
-def avg_bar(data, c_area, ret):
+def bar_scalar(data, c_area, c_mem_idx, ret):
+    '''computes area weighted average of data values,
+        over the area specified by c_area and c_mem_idx,
+        takes data of kind [[xdata, cell_area, [lat, lon], ...]
+        returns numpy'''
+    for i, idx_set in c_mem_idx:
+        ret[i] = avg_bar([data[j] for j in idx_set], c_area[i])
+
+#--------------------
+#@TimeThis
+@requires({
+    'full' : ['data'],
+    'slice' : ['c_area', 'c_mem_idx', 'retx', 'rety']
+})
+@ParallelNpArray(mp)
+def bar_2Dvector(xdata, ydata, c_area, c_mem_idx, retx, rety):
+    #TODO figure out how to have a dual pipe back
+    for i, idx_set in c_mem_idx:
+        x_set = [xdata[j] for j in idx_set]
+        y_set = [ydata[j] for j in idx_set]
+        plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
+        x_set, y_set = rotate_multiple_to_local(plon, plat, x_set, y_set)
+
+        #after averaging, the latlon and area info becomes obsolete
+        retx[i,] = avg_bar(x_set, c_area[i])
+        rety[i,] = avg_bar(y_set, c_area[i])
+#--------------------
+#@TimeThis
+def avg_bar(data, c_area):
     """computes the bar average of data
         data - needs to be full stack
-        c_area - can be part"""
-    vals = np.sum(data, 0)
-    ret[:] = np.divide(vals, coarse_area)
+        c_area - can be part
+        takes data of shape
+        [[xdata(numpy), cell_area(float), [lon, lat], ..]
+        returns numpy array of xdata.shape"""
+    #create empty ntim, lev array for summation
+    xsum = np.zeros(data[0][0].shape())
+    for i, xbit in enumerate(data):
+        # multiply data with area
+        vals = np.multiply(xbit[0], xbit[1], 0)
+        # add that to the sum of all
+        xsum = np.add(xsum, vals)
+    # divide by total area & return
+    return np.divide(xsum, c_area)
 #--------------------
 #@TimeThis
 @requires({
     'full' : ['data', 'rho'],
-    'slice' : ['rho_bar', 'c_area', 'ret']
+    'slice' : ['rho_bar', 'c_area', 'c_mem_idx', 'ret']
 })
 @ParallelNpArray(mp)
-def avg_hat(data, rho, rho_bar, c_area, ret):
-    """computes the hat average of data,
-    requires the average of rho"""
-    vals = np.sum(np.multiply(data, rho, 0))
-    ret[:] = np.divide(vals, (c_area, rho_bar))
+def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
+    for i, idx_set in c_mem_idx:
+        data_set = [[data[j], rho[j]] for j in idx_set]
+        rho_set = [rho[j] for j in idx_set]
+        ret[i] = avg_hat(data_set, rho_set, rho_bar[i], c_area[i])
+
 #--------------------
+#@TimeThis
+@requires({
+    'full' : ['xdata', 'ydata', 'rho'],
+    'slice' : ['rho_bar', 'c_area', 'c_mem_idx', 'retx', 'rety']
+})
+@ParallelNpArray(mp)
+def hat_2Dvector(xdata, ydata, rho, rho_bar, c_area, c_mem_idx, retx, rety):
+    for i, idx_set in c_mem_idx:
+        x_set = [xdata[j] for j in idx_set]
+        y_set = [ydata[j] for j in idx_set]
+        x_set, y_set = rotate_multiple_to_local(x_set, y_set)
+        rho_set = [rho[j] for j in idx_set]
+        #after averaging, the latlon and area info becomes obsolete
+        retx[i,] = avg_hat(x_set, rho_set, rho_bar[j], c_area[i])
+        rety[i,] = avg_hat(y_set, rho_set, rho_bar[j], c_area[i])
+
+#--------------------
+#@TimeThis
+def avg_hat(data, rho, rho_bar, c_area):
+    """computes the hat average of data,
+    requires the average of rho
+    takes data of kind
+    [[[xdata, cell_area, [lat, lon]], rho], ...]
+    returs numpy"""
+    #create empty ntim, lev array for summation
+    xsum = np.zeros(data[0][0].shape())
+    for i, xbit in enumerate(data):
+        # multiply data with area
+        vals = np.multiply(xbit[0], xbit[1], 0)
+        # multiply data with density
+        vals = np.multiply(vals, rho[i], 0)
+        # add that to the sum of all
+        xsum = np.add(xsum, vals)
+    # divide by rho_bar(numpy) * total area(scalar) & return
+    return np.divide(xsum, np.multiply(rho_bar, c_area))
+
+#--------------------
+# TODO: scrub data structures out of there.
 #@TimeThis
 @requires({
     'full' : ['data', 'grid_nfo'],
@@ -51,6 +129,8 @@ def fluctsof(data, data_avg, ret):
     """computes deviations from local mean"""
     ret[:] = np.subtract(data_avg, data)
 #--------------------
+# TODO: scrub data structures out of there.
+#       repair broken section!, Got my Datastructure wrong
 #@TimeThis
 @requires({
     'full' : ['data', 'grid_nfo'],
@@ -59,34 +139,36 @@ def fluctsof(data, data_avg, ret):
 def fluctsof_vec(data, grid_nfo, data_avg, ret):
 
 #--------------------
+# TODO: scrub data structures out of there.
 #@TimeThis
 @requires({
     'full' : ['u', 'v', 'grid_nfo'],
     'slice' : ['gradient_nfo', 'gradient']
 })
 @ParallelNpArray(mp)
-def uv_2D_gradient(u, v, grid_nfo, gradient_nfo, gradient):
+def uv_2D_gradient(u, v, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     """computes the gradient of velocity components in u,v using
     the information in gradient_nfo
+        u, v are of shape [[data, cell_area, [lon, lat]], ...]
         return: gradient
+
     """
     r_e = 6.37111*10**6
-    for i, g_nfo in gradient_nfo:
+    for g_idx, g_coordrad, c_area in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area):
         neighs_u = []
         neighs_v = []
         for j in range(4):
-            grid_nfo_fltrd = grid_nfo[g_nfo['member_idx'][j]]
-            cell_areas = [k['cell_area'] of i,k in enumerate(grid_nfo_fltrd)]
-            helper = circ_dist_avg_vec(
-                x_values,
-                y_values,
-                g_nfo['coords'][j,:,],
-                grid_nfo_fltrd
+            x_set = [u[k] for k in g_idx[j]]
+            y_set = [u[k] for k in g_idx[j]]
+            # This is broken and wrong
+            helper = dist_avg_vec(
+                x_set,
+                y_set,
+                g_coordrad[j]
             )
             neighs_u.append(helper[0])
             neighs_v.append(helper[1])
-        area = grid_nfo[g_nfo['icell']]['coarse_area']
-        d = 2 * radius(area) * r_e
+        d = 2 * radius(c_area) * r_e
         for j in range(2): # dx, dy
             gradient[i, j, 0, :,] = central_diff(
                 neighs_u[(2*j)],
@@ -99,21 +181,16 @@ def uv_2D_gradient(u, v, grid_nfo, gradient_nfo, gradient):
                 d
             )
 
+# TODO: scrub data structures out of there.
 #@TimeThis
-def dist_avg_vec(x_values, y_values, center_coords, grid_nfo):
+def dist_avg_vec(x_values, y_values, grid_nfo):
     '''
     does distance weighted average of values within a circular area on a sphere.
     needs:  coordinates of center, indices of area members,
             distances of members from center,'''
     #shift lat lon grid to a local pole.
-    val_coords = [
-        [k['lat'] for i,k in enumerate(grid_nfo)],
-        [k['lon'] for i,k in enumerate(grid_nfo)],
-    ]
-    plon, plat = get_polar(center_coords[0], center_coords[1])
+    plon, plat = get_polar(grid_nfo[0][1], grid_nfo[0][1])
     x_vec, y_vec = rotate_multiple_to_local(
-        val_coords[0],
-        val_coords[1],
         plon,
         plat,
         x_values,
@@ -126,15 +203,17 @@ def dist_avg_vec(x_values, y_values, center_coords, grid_nfo):
     return x_vec, y_vec
 
 
+# TODO: scrub data structures out of there.
 #@TimeThis
 def dist_avg_scalar(x_values, grid_nfo):
     factor = 0
-    weights = [k['cell_area'] * k['radii'] for i,k in enumerate(grid_nfo)]
+    # multiply cell_area and distance from center to recieve weight
+    weights = [x_val[1]* x_rad for x_val, x_rad in itertools.izip(x_values, grid_nfo[1])]
     factor = np.sum(weights)
 
     average = 0
-    for i,weight in enumerate(weights):
-        average = average + x_values[i] * weight
+    for x_val,weight in itertools.izip(x_values, weights):
+        average = average + x_values[0] * weight
     return average / factor
 
 def central_diff(xl, xr, d):
@@ -161,31 +240,34 @@ def get_polar(lon, lat):
 
     return plon, plat
 
-def rotate_multiple_to_local(lon, lat, plon, plat, x, y):
+def rotate_multiple_to_local(plon, plat, x, y):
     '''wrapper to iterate over multiple values being turned onto the same local grid'''
-    len_x = x.shape[0]
-    x_tnd = np.zeros(x.shape)
-    y_tnd = np.zeros(y.shape)
-    for i in range(len_x):
-        x_tnd[i, :, ], y_tnd[i, :, ] = rotate_vec_to_local(
+    len_x = len(x)
+    x_tnd = []
+    y_tnd = []
+    for xi,yi in itertools.izip(x, y):
+        out = rotate_vec_to_local(
             plon, plat,
-            lon[i], lat[i],
-            x[i, :, ], y[i, :, ]
+            x, y
         )
+        x_tnd.append(out[0])
+        y_tnd.append(out[1])
     return x_tnd, y_tnd
 
-def rotate_vec_to_local(plon, plat, lon, lat, x, y):
-    x_tnd = np.zeros(x.shape)
-    y_tnd = np.zeros(y.shape)
+def rotate_vec_to_local(plon, plat, x, y):
+    '''x, y are assumed to be datapoints of the shape:
+        [data, cell_area, [lon, lat]]
+        returns the data shape
+        with data changed according to turn
+        '''
+    sin_d, cos_d = rotation_jacobian(x[2][0], x[2][1], plon, plat)
 
-    sin_d, cos_d = rotate_latlon_vec(lon, lat, plon, plat)
-
-    x_tnd = x * cos_d - y * sin_d
-    y_tnd = x * cos_d + y * sin_d
+    x_tnd = [x[0] * cos_d - y[0] * sin_d, x[1], x[2]]
+    y_tnd = [x[0] * cos_d + y[0] * sin_d, y[1], y[2]]
 
     return x_tnd, y_tnd
 
-def rotate_latlon_vec(lon, lat, plon, plat):
+def rotation_jacobian(lon, lat, plon, plat):
     ''' returns entries of rotation matrix according to documentation of COSMOS pp. 27'''
 
     z_lamdiff = lon - plon
