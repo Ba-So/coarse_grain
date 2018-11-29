@@ -1,0 +1,84 @@
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_0.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_1.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_2.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_3.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_4.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_5.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_6.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_7.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_8.nc
+/home1/kd031/projects/icon/experiments/BCW_fine/time_slice_9.nc
+reading gridfile
+file 1 of 10
+time 10, levels 70 and cells 655362
+G1_Y
+G1_X
+ZSTAR
+THETA_V
+U
+RHO
+V
+EXNER
+----------
+computing the Temperature field
+(655362, 10, 70)
+--------------
+averaging variable fields
+  ------------
+  computing bar averages
+['U_bar', 'V_bar', 'G1_X_bar', 'G1_Y_bar', 'T_bar', 'ZSTAR_bar', 'RHO_bar']
+  ------------
+  computing hat averages
+['U_hat', 'V_hat', 'G1_X_hat', 'G1_Y_hat', 'T_hat']
+mean Velocity U  : bar:0.000717573987402, hat:0.00059828403619
+mean Velocity V  : bar:-0.0117315197804, hat:-0.00973936382001
+mean Density    : bar:0.633659268723, hat: - 
+mean Temperature: bar:295.125587991, hat:244.639980379
+multiprocessing took 16.2045399666 minutes
+--------------
+computing the gradients
+mean velocity gradient u_x: 1.54156959252e-07
+mean velocity gradient u_y: 1.5423553262e-07
+mean velocity gradient v_x: 1.64555450631e-07
+mean velocity gradient v_y: 1.60786756238e-07
+2.97014636596
+--------------
+computing the dyads
+--------------
+computing the turbulent friction
+--------------
+computing the dissipation coeficient
+Kt_fric
+Kt_fric_ac
+U_bar
+G1_X_hat
+Kt_fric_ac
+G1_Y_hat
+vars
+factor
+V_bar
+ZSTAR
+T
+t_fric_ac
+t_fric
+U_hat
+dyad
+t_diss
+name
+RHO_bar
+index
+kind
+V_hat
+gradient
+G1_Y_bar
+fluctsof
+G1_X_bar
+T_bar
+var
+T_hat
+dyad_name
+ZSTAR_bar
+Kt_fric
+computation finished after 34.4533131162
+min -9.78227324964e-05 and max 7.70969112635e-05
+globally averaged entropy production rate: 4.44595538437e-07

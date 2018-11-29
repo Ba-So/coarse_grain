@@ -47,7 +47,7 @@ def area_avg(kind, var):
                 var['vars'][i].append('RHO')
 
         # semi fatal: RHO_bar missing
-
+        if 'RHO_bar' not in gv.globals_dict['data_run']:
             area_avg('bar', {'vars':['RHO']})
 
         factor = {}
@@ -140,6 +140,15 @@ def area_avg_sub(i_cell):
         # Sum Rho*var(i) up
         vals = np.sum(vals, 0)
         values[i] = np.divide(vals, gv.globals_dict['data_run']['factor'][i_cell])
+
+# the below may well be superlouus
+#    if var.get('vector'):
+#        values[indx[0]], values[indx[1]] = rotate_single_to_global(
+#            areas['lon'][0],
+#            areas['lat'][0],
+#            values[indx[0]][:, :],
+#            values[indx[1]][:, :]
+#        )
     del indx
     return values
 
