@@ -1,87 +1,79 @@
-import xarray as xr
-import data_op as dop
-import math_op as mop
-import itertools
 import glob
+import re
 import os
-from debugdecorators import PrintArgs, PrintReturn
-from paralleldecorators import shared_np_array
+import sys
+from netCDF4 import Dataset
+import numpy as np
+#from debugdecorators import PrintArgs, PrintReturn
 
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
-def glob_files(path, lookfor):
-    return [
-        n for n in
-        glob.glob(path + lookfor) if os.path.isfile(n)
-        ]
+class IOcontroller(object):
+    # TODO write script
 
-def read_netcdfs(path):
-    """
-        reads data from .nc files:
-        path: Path to file
-        qty : qty to be read
-        """
-    ds = xr.open_dataset(path)
+    def __init__(self, experiment_path, grid, data):
+        self.experiment_path = os.path.expanduser(experiment_path)
+        self.gridfile = self.find(grid)
+        self.datafiles = self.find(data)
 
-    return ds
-
-def rename_dims_vars(ds, dims = None):
-    '''
-        rename dimensions or variables of xarray Dataset
-        input:
-            ds: xr.dataset,
-            dims: dict of {'old_name' : 'newname'}
-        output:
-            ds_o : xr.dataset with renamed dimesions
-        '''
-    if not dims:
-        dims={
-            'cell2' : 'ncells',
-            'vlon' : 'clon',
-            'vlat' : 'clat'
-              }
-    for key, item in dims.iteritems():
-        if key in ds or key in ds.dims:
-            ds = ds.rename({key : item})
+    def find(self, pattern):
+        GridReg = re.compile(pattern, re.VERBOSE)
+        grid_files = glob.glob(os.path.join(self.experiment_path, '*'))
+        found = []
+        for xfile in grid_files:
+            xres = GridReg.search(xfile)
+            if xres:
+                found.append(xres.group(0))
+        if len(found) == 0:
+            print('error, no file found')
         else:
-            print('{} not found in dataset').format(key)
+            print('multiple files found')
+            print(found)
+        return found
 
-    return ds
+    def load_from(self, where, var, filenum = 0):
+        if where == 'data':
+            xfile = self.datafiles[filenum]
+        elif where == 'grid':
+            xfile = self.gridfile[0]
+        else:
+            sys.exit('invalid file')
 
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
+            var_keys = [str(xkey) for xkey in xdata.variables.keys()]
+            if var in var_keys:
+                data = xdata.variables[var][:]
+            else:
+                sys.exit('variable doesn\'t exist as variable in gridfile')
 
-def rename_attr(ds, which, attr):
-    '''
-        rename attributes of xarray Dataset
-        input:
-            ds: xr.dataset,
-            dims: dict of {'old_name' : 'newname'}
-        output:
-            ds_o : xr.dataset with renamed dimesions
-        '''
-    for key, item in attr.iteritems():
-        if key in ds:
-            ds[key].attrs[which] = item
+        if where == 'data':
+            # switch rows, so ncell is in front
+            data = np.moveaxis(data, -1, 0)
 
-    return ds
+        return data
 
-def extract_variables(ds, variables):
-    '''
-        create new dataset containing only specific variables
-        input:
-            ds : xr.dataset,
-            variables : array of strings
-        output:
-            ds_o : xr.dataset
-        '''
-    #variables = ['U', 'V']
-    ds_o = ds[variables]
+    def write_to(
+        self, where, data, filenum=0,
+        name='data', dtype = 'f8', dims = ('time', 'lev', 'cell2'),
+        attrs = {'long name': 'no name'}
+    ):
+        if where == 'data':
+            xfile = self.datafiles[filenum]
+            xdata = np.moveaxis(data, 0, -1)
+        elif where == 'grid':
+            xfile = self.gridfile[0]
+        # switch rows, so ncell is back in the back
+        # write to disk
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
+            newvar = xdata.createVariable(name, dtype, dims)
+            newvar.setncattrs(attrs)
+            xdata[name][:] = data
+            xdata.close()
 
-    return ds_o
-
-def write_netcdf(path, ds):
-    """writes Information to .nc file
-    """
-    print ('writing to {}').format(path)
-    ds.to_netcdf(path, mode='w')
-
+if __name__ == '__main__':
+    IO = IOcontroller('~/projects/icon/experiments/BCW_coarse', r'iconR\dB\d{2}-grid.nc', r'BCWcg_R\dB\d{2}_U.nc')
+    data = IO.load_from('grid', 'clat')
+    print(data.shape)
+    data = IO.load_from('data', 'U')
+    print(data.shape)
 
