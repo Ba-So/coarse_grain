@@ -14,6 +14,9 @@ class Mp(object):
     def change_num_procs(self, num_procs):
         self.num_procs = num_procs
 
+#global standard value
+mp = Mp(False, 2)
+
 class ParallelNpArray(object):
     """do parallelisation using shared memory"""
     def __init__(self, mp=None):
@@ -27,14 +30,18 @@ class ParallelNpArray(object):
                 result_queue = []
                 processes = []
                 if hasattr(_parall, 'needs'):
-                    args_sliced = [
-                        {
-                            need : kwargs[need] for need in needs[full]
-                        } for i in range(self._mp.num_procs)
-                    ]
-
-                for i in range(self._mp.num_procs):
-                    p = Process(target=func, args=args)
+                    args_sliced = []
+                    # relies on full stacks being always in first positions.
+                    # convention!
+                    len_full = len(_parall.needs['full'])
+                    for i in range(self._mp.num_procs):
+                        args_i = list(args[:len_full])
+                        for arg in args[len_full:]:
+                            args_i.append(arg[slices[i]])
+                        args_sliced.append(args_i)
+                #initiate processes with the sliced args
+                for xarg in args_sliced:
+                    p = Process(target=func, args=xarg)
                     processes.append(p)
                 for p in processes:
                     p.run()
