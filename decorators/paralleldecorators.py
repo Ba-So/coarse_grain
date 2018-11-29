@@ -32,9 +32,6 @@ class ParallelNpArray(object):
                             need : kwargs[need] for need in needs[full]
                         } for i in range(self._mp.num_procs)
                     ]
-                    for i in range(self._mp.num_procs):
-                        for need in needs[part] if arg in needs[part]:
-                            args_sliced.update({})
 
                 for i in range(self._mp.num_procs):
                     p = Process(target=func, args=args)
