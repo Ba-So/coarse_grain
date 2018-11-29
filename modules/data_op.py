@@ -4,7 +4,8 @@
 #   * Routine to assign hex area neighbors to central hexes
 #   * Routine to cast hexes into objects.
 #       -> parallelization through using as many objects as there are
-#       processors? with one global dict, giving information on which processor specific
+#       processors? with one global dict, giving information on which
+#       processor specific
 #       hexes are to allow messages to be sent between them.
 #       -> read on parallelization?
 
@@ -33,6 +34,7 @@ def get_members(where, i, variables):
     return out
 
 # changed according to new array structure - check
+# has become superflous
 def get_members_idx(where, idxcs, variables):
     '''gets members of a hex_area'''
     # functional and used.
