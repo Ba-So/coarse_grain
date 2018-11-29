@@ -124,10 +124,10 @@ def vec_flucts(x_data, y_data, x_avg, y_avg):
     """computes deviations from local mean"""
     plon, plat = get_polar(x_data[0][2][0], x_data[0][2][1])
     x_tnd, y_tnd = rotate_multiple_to_local(plon, plat, x_data, y_data)
-    x_avg = scalar_flucts(x_tnd, x_avg)
-    y_avg = scalar_flucts(y_tnd, y_avg)
+    x_flucts = scalar_flucts(x_tnd, x_avg)
+    y_flucts = scalar_flucts(y_tnd, y_avg)
 
-    return x_avg, y_avg
+    return x_flucts, y_flucts
 
 #--------------------
 # TODO: scrub data structures out of there.
