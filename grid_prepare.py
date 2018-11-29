@@ -311,10 +311,10 @@ def get_gradient_nfo(grid):
         coords,
         dims = ['ncells','num_four','num_two'])
     member_idx = xr.DataArray(
-        member_idx[np.where(idxcs > -1)[0],].astype(int),
+        member_idx,
         dims= ['ncells','num_four','max_members'])
     member_rad = xr.DataArray(
-        member_rad[np.where(idxcs > -1)[0],].astype(int),
+        member_rad,
         dims= ['ncells','num_four','max_members'])
 
     kwargs = {
