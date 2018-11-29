@@ -120,23 +120,20 @@ def avg_hat(data, rho, rho_bar, c_area):
 #--------------------
 # TODO: scrub data structures out of there.
 #@TimeThis
-@requires({
-    'full' : ['data', 'grid_nfo'],
-    'slice' : ['ret', 'data_avg']
-})
-@ParallelNpArray(mp)
-def fluctsof(data, data_avg, ret):
+def vec_flucts(x_data, y_data, x_avg, y_avg):
     """computes deviations from local mean"""
-    ret[:] = np.subtract(data_avg, data)
+    plon, plat = get_polar(x_data[0][2][0], x_data[0][2][1])
+    x_tnd, y_tnd = rotate_multiple_to_local(plon, plat, x_data, y_data)
+    x_avg = scalar_flucts(x_tnd, x_avg)
+    y_avg = scalar_flucts(y_tnd, y_avg)
+
+    return x_avg, y_avg
+
 #--------------------
 # TODO: scrub data structures out of there.
-#       repair broken section!, Got my Datastructure wrong
 #@TimeThis
-@requires({
-    'full' : ['data', 'grid_nfo'],
-    'slice' : ['ret', 'data_avg']
-})
-def fluctsof_vec(data, grid_nfo, data_avg, ret):
+def scalar_flucts(xdata, avg_data):
+    return np.array([avg_data - x_dat[0] for x_dat in xdata])
 
 #--------------------
 # TODO: scrub data structures out of there.
