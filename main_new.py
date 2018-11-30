@@ -53,7 +53,6 @@ class CoarseGrain(Operations):
         print(np.mean(U))
         U = self.nfo_merge(U)
         U_bar = self.create_array(varshape)
-        print(type(U_bar))
         gmp.set_parallel_proc(True)
         gmp.set_num_procs(8)
         math.bar_scalar(U, self.c_area, self.c_mem_idx, U_bar)
