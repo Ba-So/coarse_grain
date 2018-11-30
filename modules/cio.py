@@ -44,11 +44,10 @@ class IOcontroller(object):
             if var in var_keys:
                 data = xdata.variables[var][:]
             else:
-                sys.exit('variable doesn\'t exist as variable in gridfile')
+                sys.exit('variable doesn\'t exist as variable in file')
 
-        if where == 'data':
-            # switch rows, so ncell is in front
-            data = np.moveaxis(data, -1, 0)
+        # switch rows, so ncell is in front
+        data = np.moveaxis(data, -1, 0)
 
         return data
 

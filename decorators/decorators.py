@@ -3,6 +3,7 @@
 import sys
 
 # Basic construction of my new class structured vision
+mp = Mp(False, 2)
 
 def ensure_inputs(needed):
     '''checks for presence of necessary variables'''

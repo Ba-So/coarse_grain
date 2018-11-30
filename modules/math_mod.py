@@ -2,34 +2,33 @@
 # coding=utf-8
 import numpy as np
 import itertools
-from debugdecorators import TimeThis, PrintArgs
-from paralleldecorators import Mp, ParallelNpArray
-from functiondecorators import requires
+from decorators.debugdecorators import TimeThis, PrintArgs
+from decorators.paralleldecorators import gmp, ParallelNpArray
+from decorators.functiondecorators import requires
 #pass data as full, but give c_area in slices.
 #race conditions?
-mp = Mp(8, False) # standart be 8 cores, and deactivated
 
 #@TimeThis
-@requires()
-@ParallelNpArray(mp)
-def func(ina, inb, ret):
-    """function sceleton"""
-    foo = ina * inb
-    ret = foo
+#@requires()
+#@ParallelNpArray(mp)
+#def func(ina, inb, ret):
+#    """function sceleton"""
+#    foo = ina * inb
+#    ret = foo
 #--------------------
-#@TimeThis
+@TimeThis
 @requires({
     'full' : ['data'],
     'slice' : ['c_area', 'c_mem_idx', 'ret']
 })
-@ParallelNpArray(mp)
+@ParallelNpArray(gmp)
 def bar_scalar(data, c_area, c_mem_idx, ret):
     '''computes area weighted average of data values,
         over the area specified by c_area and c_mem_idx,
         takes data of kind [[xdata, cell_area, [lat, lon], ...]
         returns numpy'''
-    for i, idx_set in c_mem_idx:
-        ret[i] = avg_bar([data[j] for j in idx_set], c_area[i])
+    for idx_set, c_a, reti in itertools.izip(c_mem_idx, c_area, ret):
+        reti[:,] = avg_bar([data[j] for j in idx_set], c_a)
 
 #--------------------
 #@TimeThis
@@ -37,18 +36,18 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
     'full' : ['data'],
     'slice' : ['c_area', 'c_mem_idx', 'retx', 'rety']
 })
-@ParallelNpArray(mp)
+@ParallelNpArray(gmp)
 def bar_2Dvector(xdata, ydata, c_area, c_mem_idx, retx, rety):
     #TODO figure out how to have a dual pipe back
-    for i, idx_set in c_mem_idx:
+    for idx_set, c_a, rxi, ryi in itertools.izip(c_mem_idx, c_area, retx, rety):
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
         plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
         x_set, y_set = rotate_multiple_to_local(plon, plat, x_set, y_set)
 
         #after averaging, the latlon and area info becomes obsolete
-        retx[i,] = avg_bar(x_set, c_area[i])
-        rety[i,] = avg_bar(y_set, c_area[i])
+        rxi[:,] = avg_bar(x_set, c_a)
+        ryi[:,] = avg_bar(y_set, c_a)
 #--------------------
 #@TimeThis
 def avg_bar(data, c_area):
@@ -59,10 +58,10 @@ def avg_bar(data, c_area):
         [[xdata(numpy), cell_area(float), [lon, lat], ..]
         returns numpy array of xdata.shape"""
     #create empty ntim, lev array for summation
-    xsum = np.zeros(data[0][0].shape())
-    for i, xbit in enumerate(data):
+    xsum = np.zeros(data[0][0].shape)
+    for xbit in data:
         # multiply data with area
-        vals = np.multiply(xbit[0], xbit[1], 0)
+        vals = xbit[0] * xbit[1]
         # add that to the sum of all
         xsum = np.add(xsum, vals)
     # divide by total area & return
@@ -73,12 +72,12 @@ def avg_bar(data, c_area):
     'full' : ['data', 'rho'],
     'slice' : ['rho_bar', 'c_area', 'c_mem_idx', 'ret']
 })
-@ParallelNpArray(mp)
+@ParallelNpArray(gmp)
 def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
-    for i, idx_set in c_mem_idx:
-        data_set = [[data[j], rho[j]] for j in idx_set]
+    for idx_set, rbi, cai, reti in itertools.izip(c_mem_idx, rho_bar, c_area, ret):
+        data_set = [data[j] for j in idx_set]
         rho_set = [rho[j] for j in idx_set]
-        ret[i] = avg_hat(data_set, rho_set, rho_bar[i], c_area[i])
+        reti[:,] = avg_hat(data_set, rho_set, rbi, cai)
 
 #--------------------
 #@TimeThis
@@ -86,16 +85,17 @@ def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
     'full' : ['xdata', 'ydata', 'rho'],
     'slice' : ['rho_bar', 'c_area', 'c_mem_idx', 'retx', 'rety']
 })
-@ParallelNpArray(mp)
+@ParallelNpArray(gmp)
 def hat_2Dvector(xdata, ydata, rho, rho_bar, c_area, c_mem_idx, retx, rety):
-    for i, idx_set in c_mem_idx:
+    for idx_set, r_b_i, c_a_i, rxi, ryi in itertools.izip(c_mem_idx, rho_bar, c_area, retx, rety):
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
-        x_set, y_set = rotate_multiple_to_local(x_set, y_set)
+        plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
+        x_set, y_set = rotate_multiple_to_local(plon, plat, x_set, y_set)
         rho_set = [rho[j] for j in idx_set]
         #after averaging, the latlon and area info becomes obsolete
-        retx[i,] = avg_hat(x_set, rho_set, rho_bar[j], c_area[i])
-        rety[i,] = avg_hat(y_set, rho_set, rho_bar[j], c_area[i])
+        rxi[:,] = avg_hat(x_set, rho_set, r_b_i, c_a_i)
+        ryi[:,] = avg_hat(y_set, rho_set, r_b_i, c_a_i)
 
 #--------------------
 #@TimeThis
@@ -106,12 +106,12 @@ def avg_hat(data, rho, rho_bar, c_area):
     [[[xdata, cell_area, [lat, lon]], rho], ...]
     returs numpy"""
     #create empty ntim, lev array for summation
-    xsum = np.zeros(data[0][0].shape())
-    for i, xbit in enumerate(data):
+    xsum = np.zeros(data[0][0].shape)
+    for xbit, rbit in itertools.izip(data, rho):
         # multiply data with area
-        vals = np.multiply(xbit[0], xbit[1], 0)
+        vals = xbit[0] * xbit[1]
         # multiply data with density
-        vals = np.multiply(vals, rho[i], 0)
+        vals = np.multiply(vals, rbit)
         # add that to the sum of all
         xsum = np.add(xsum, vals)
     # divide by rho_bar(numpy) * total area(scalar) & return
@@ -142,15 +142,16 @@ def scalar_flucts(xdata, avg_data):
     'full' : ['u', 'v', 'grid_nfo'],
     'slice' : ['gradient_nfo', 'gradient']
 })
-@ParallelNpArray(mp)
+@ParallelNpArray(gmp)
 def uv_2D_gradient(u, v, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     """computes the gradient of velocity components in u,v using
     the information in gradient_nfo
         u, v are of shape [[data, cell_area, [lon, lat]], ...]
-        return: gradient
+        return: gradient ... manage this somehow
 
     """
     r_e = 6.37111*10**6
+
     for g_idx, g_coordrad, c_area in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area):
         neighs_u = []
         neighs_v = []
@@ -167,7 +168,7 @@ def uv_2D_gradient(u, v, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
             neighs_v.append(helper[1])
         d = 2 * radius(c_area) * r_e
         for j in range(2): # dx, dy
-            gradient[i, j, 0, :,] = central_diff(
+            gradient[g_idx[0], j, 0, :,] = central_diff(
                 neighs_u[(2*j)],
                 neighs_u[(2*j)+1],
                 d
@@ -275,4 +276,3 @@ def rotation_jacobian(lon, lat, plon, plat):
     cos_d = z_b / z_sq
 
     return sin_d, cos_d
-

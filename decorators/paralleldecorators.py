@@ -6,16 +6,18 @@ from multiprocessing import Process, Queue, Array
 from debugdecorators import TimeThis, PrintArgs, PrintReturn
 
 class Mp(object):
-    def __init__(self, num_procs, switch):
+    def __init__(self, switch, num_procs):
         self.num_procs = num_procs
         self.switch = switch
-    def toggle_switch(self):
-        self.switch = not(self.switch)
-    def change_num_procs(self, num_procs):
+
+    def set_parallel_proc(self, state):
+        self.switch = state
+
+    def set_num_procs(self, num_procs):
         self.num_procs = num_procs
 
 #global standard value
-mp = Mp(False, 2)
+gmp = Mp(False, 2)
 
 class ParallelNpArray(object):
     """do parallelisation using shared memory"""
@@ -24,8 +26,6 @@ class ParallelNpArray(object):
     def __call__(self, func):
         def _parall(*args, **kwargs):
             if self._mp.switch:
-                if hasattr(_parall, "needs"):
-                    print('Yay')
                 slices = self.prepare_slices(args[0], self._mp)
                 result_queue = []
                 processes = []
@@ -39,14 +39,22 @@ class ParallelNpArray(object):
                         for arg in args[len_full:]:
                             args_i.append(arg[slices[i]])
                         args_sliced.append(args_i)
+                else:
+                    args_sliced = []
+                    for i in range(self._mp.num_procs):
+                        for arg in args:
+                            args_i.append(arg[slices[i]])
+                        args_sliced.append(args_i)
                 #initiate processes with the sliced args
                 for xarg in args_sliced:
                     p = Process(target=func, args=xarg)
                     processes.append(p)
+                    p.start()
                 for p in processes:
-                    p.run()
+                    p.join()
             else:
-               func(*args)
+                func(*args)
+
         return _parall
 
     @staticmethod

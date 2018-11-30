@@ -1,26 +1,28 @@
 #!/usr/bin/env python
 # coding=utf-8
-from decorators.paralleldecorators import Mp, ParallelNpArray, shared_np_array
+import numpy as np
+import itertools
+
+from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array
 from decorators.functiondecorators import requires
 import modules.math_mod as math
-from main_new.py import mp
 '''contains all functions related to physical operations/terms'''
 
 #@TimeThis
 @requires({
-    'full': ['x_vals', 'y_vals', 'rho']
-    'part': ['x_avg_list', 'y_avg_list', 'c_mem_idx', 'coarse_area', 'ret']
+    'full': ['x_vals', 'y_vals', 'rho'],
+    'slice': ['x_avg_list', 'y_avg_list', 'c_mem_idx', 'coarse_area', 'ret']
 })
-@ParallelNpArray(mp)
+@ParallelNpArray(gmp)
 def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X')'''
     out = []
     for idx_set, c_area, x_avg, y_avg in itertools.izip(c_mem_idx, coarse_area, x_avg_list, y_avg_list):
-        x_flucts, y_flucts = vec_flucts(
+        x_flucts, y_flucts = math.vec_flucts(
             [x_vals[j] for j in idx_set],
             [y_vals[j] for j in idx_set],
             x_avg, y_avg
-        ))
+        )
         constituents = np.array([[x[0] for x in x_flucts], [y[0] for y in y_flucts]])
         rho_set = np.array([rho[j] for j in idx_set])
         cell_area = np.array([x[1] for x in x_flucts])
@@ -34,8 +36,4 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coarse_
             rho_set
         )
         #normalize:
-        out.append(np.divide(dyad, c_area))
-
-    ret[:,] = np.array(out)
-
-
+        ret[idx_set[0],:,] = np.divide(dyad, c_area)
