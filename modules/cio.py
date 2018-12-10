@@ -37,14 +37,14 @@ class IOcontroller(object):
         elif where == 'grid':
             xfile = self.gridfile[0]
         else:
-            sys.exit('invalid file')
+            sys.exit('invalid file: {}'.format(xfile))
 
         with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
             var_keys = [str(xkey) for xkey in xdata.variables.keys()]
             if var in var_keys:
                 data = xdata.variables[var][:]
             else:
-                sys.exit('variable doesn\'t exist as variable in file')
+                sys.exit('variable doesn\'t exist as variable in file: {}'.format(var))
 
         # switch rows, so ncell is in front
         data = np.moveaxis(data, -1, 0)
