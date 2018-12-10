@@ -31,9 +31,8 @@ class Operations(object):
         Y = self.nfo_merge(Y)
         X_hat = self.create_array(varshape)
         Y_hat = self.create_array(varshape)
-        print('computing the deninsity weighted coarse vector components ...')
+        print('computing the density weighted coarse vector components ...')
         math.hat_2Dvector(X, Y, rho, rho_bar, self.c_area, self.c_mem_idx, X_hat, Y_hat)
-        print(np.mean(X_hat), np.mean(Y_hat))
         return X_hat, Y_hat
 
     def xy_hat_gradients(self, xdata, ydata):
@@ -43,11 +42,56 @@ class Operations(object):
         xy_gradient = self.create_array(varshape)
         X = self.nfo_merge(xdata)
         Y = self.nfo_merge(ydata)
+        print('computing the xy gradients....')
         math.xy_2D_gradient(
             X, Y,
             self.g_mem_idx, self.g_coords_rads,
             self.c_area, xy_gradient)
         return xy_gradient
+
+    def rhoxy_averages(self, xname, yname, xavg, yavg):
+        varshape = list(np.shape(xavg))
+        varshape.insert(1, 2)
+        varshape.insert(1, 2)
+        rhoxy = self.create_array(varshape)
+        x = self.IO.load_from('data', xname)
+        y = self.IO.load_from('data', yname)
+        rho = self.IO.load_from('data', 'RHO')
+        x = self.nfo_merge(x)
+        y = self.nfo_merge(y)
+        print('computing the rhoxy values ...')
+        phys.compute_dyad(
+            x, y, rho,
+            xavg, yavg,
+            self.c_mem_idx, self.c_area,
+            rhoxy
+        )
+        return rhoxy
+
+    def turbulent_friction(self, rhoxy, gradxy):
+        print('computing the turbulent friction values ...')
+        varshape = list(np.shape(rhoxy))
+        varshape.pop(1)
+        varshape.pop(1)
+        t_fric = self.create_array(varshape)
+        phys.friction_coefficient(rhoxy, gradxy, t_fric)
+        return t_fric
+
+    def friction_coefficient(self, gradxy, t_fric):
+        rho = self.IO.load_from('data', 'RHO')
+        varshape = np.shape(rho)
+        rho = self.nfo_merge(rho)
+        rho_bar = self.create_array(varshape)
+        print('computing the coarse density values ...')
+        math.bar_scalar(rho, self.c_area, self.c_mem_idx, rho_bar)
+
+        print('computing the K values ...')
+        varshape = list(np.shape(t_fric))
+        kimag = self.create_array(varshape)
+        phys.friction_coefficient(gradxy, rho_bar, t_fric, kimag)
+        return kimag
+
+
 
 class CoarseGrain(Operations):
 
@@ -71,15 +115,13 @@ class CoarseGrain(Operations):
         self.c_mem_idx = self.IO.load_from('grid', 'area_member_idx').astype(int)
         self.c_area = self.IO.load_from('grid', 'coarse_area')
         self.g_mem_idx = self.IO.load_from('grid', 'member_idx')
-        g_coords = np.moveaxis(self.IO.load_from('grid', 'coords'), 0, -1)
         # Hack due to wrong output of grid prepare
+        g_coords = np.moveaxis(self.IO.load_from('grid', 'coords'), 0, -1)
         g_rads = np.moveaxis(self.IO.load_from('grid', 'member_rad'), 0, -1)
-        print(np.shape(g_coords))
         self.g_coords_rads = [
             [[gci, gri] for gci, gri in itertools.izip(gc, gr)] for gc, gr in itertools.izip(
                 g_coords, g_rads
             )]
-        print(np.shape(self.g_coords_rads))
 
     def create_array(self, shape):
         data_list = np.zeros(shape)
@@ -96,23 +138,22 @@ class CoarseGrain(Operations):
         U_hat, V_hat = self.bar_avg_2Dvec('U', 'V')
         print('computing U and V grad')
         UV_gradients = self.xy_hat_gradients(U_hat, V_hat)
+        rhouv_flucts = self.rhoxy_averages('U', 'V', U_hat, V_hat)
+        self.IO.write_to('data', U_hat, name='U_HAT', attrs={'long name': 'density weighted coarse zonal wind'})
+        self.IO.write_to('data', V_hat, name='V_HAT', attrs={'long name': 'density weighted coarse meridional wind'})
+        del U_hat, V_hat
+        turbfric = self.turbulent_friction(rhouv_flucts, UV_gradients)
+        del rhouv_flucts
+        self.IO.write_to('data', turbfric, name='T_FRIC', attrs={'long name' : 'turbulent_friction'})
+        K = self.friction_coefficient(UV_gradients, turbfric)
+        self.IO.write_to('data', K, name='K_TURB', attrs={'long name' : 'turbulent dissipation coefficient'})
 
     def testing(self):
         xname = 'U'
         yname = 'V'
         X = self.IO.load_from('data', xname)
         Y = self.IO.load_from('data', yname)
-        varshape = list(np.shape(X))
-        X = self.nfo_merge(X)
-        Y = self.nfo_merge(Y)
-        varshape.insert(1, 4)
-        varshape.insert(2, 2)
-        xy_gradient = self.create_array(varshape)
-        math.xy_2D_gradient(
-            X, Y,
-            self.g_mem_idx, self.g_coords_rads,
-            self.c_area, xy_gradient)
-        return xy_gradient
+        rhoxy = self.rhoxy_averages('U', 'V', X, Y)
 
 
 
@@ -125,7 +166,7 @@ if __name__ == '__main__':
     gmp.set_num_procs(16)
     cg = CoarseGrain(path, gridfile, datafile)
     print cg._ready
-    cg.testing()
-    #cg.execute()
+    #cg.testing()
+    cg.execute()
 
 

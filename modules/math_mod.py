@@ -130,10 +130,10 @@ def vec_flucts(x_data, y_data, x_avg, y_avg):
     return x_flucts, y_flucts
 
 #--------------------
-# TODO: scrub data structures out of there.
 #@TimeThis
-def scalar_flucts(xdata, avg_data):
-    return np.array([avg_data - x_dat[0] for x_dat in xdata])
+def scalar_flucts(xdata, xavgdata):
+    # maintain data structures
+    return [[np.subtract(xavgdata, xdat[0]), xdat[1], xdat[2]] for xdat in xdata]
 
 #--------------------
 # TODO: scrub data structures out of there.

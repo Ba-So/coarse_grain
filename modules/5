@@ -3,7 +3,6 @@
 import numpy as np
 import itertools
 
-from decorators.debugdecorators import TimeThis, PrintArgs
 from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array
 from decorators.functiondecorators import requires
 import modules.math_mod as math
@@ -71,11 +70,11 @@ def friction_coefficient(gradxy, rhobar, tfric, imagk):
             gradxy[:, 1, 0, :,],
         )
     )
-    rhoEF = np.multiply(
+    rhoef = np.multiply(
         rhobar,
         np.add(E_sq, F_sq)
     )
-    imagk[:,] = np.divide(tfric, rhoEF)
+    imagk[:,] = np.divide(tfric, rhoef)
 
 
 

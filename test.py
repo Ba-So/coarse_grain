@@ -108,7 +108,37 @@ class TestMath(unittest.TestCase):
     def test_central_diff(self):
         self.assertAlmostEqual(1, math.central_diff(4,2,1))
 
+    def test_scalar_flucts(self):
+        test_array = [[np.ones((3,3)), 10, [3,3]] for i in range(test_len)]
+        avg_array = np.ones((3,3))
+        avg_array.fill(2)
+
+        for i in range(test_len):
+            self.assertTrue(
+                np.allclose(
+                    test_array[i][0],
+                    math.scalar_flucts(test_array, avg_array)[i][0]
+                )
+            )
+            self.assertTrue(
+                np.allclose(
+                    test_array[i][1],
+                    math.scalar_flucts(test_array, avg_array)[i][1]
+                )
+            )
+
+    def test_vec_flucts(self):
+        test_array = [[np.ones((3,3)), 10, [np.pi/2,np.pi/4]] for i in range(test_len)]
+        avg_array = np.ones((3,3))
+        avg_array.fill(2)
+
+        self.assertTrue(
+            np.allclose(
+                test_array[0][0],
+                math.vec_flucts(test_array, test_array, avg_array, avg_array)[0][0][0]
+            )
+        )
+
+
 if __name__ == '__main__':
     unittest.main()
-
-
