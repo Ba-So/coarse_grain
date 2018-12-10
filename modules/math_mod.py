@@ -33,7 +33,7 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
 #--------------------
 #@TimeThis
 @requires({
-    'full' : ['data'],
+    'full' : ['xdata', 'ydata'],
     'slice' : ['c_area', 'c_mem_idx', 'retx', 'rety']
 })
 @ParallelNpArray(gmp)
@@ -44,10 +44,10 @@ def bar_2Dvector(xdata, ydata, c_area, c_mem_idx, retx, rety):
         y_set = [ydata[j] for j in idx_set]
         plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
         x_set, y_set = rotate_multiple_to_local(plon, plat, x_set, y_set)
-
         #after averaging, the latlon and area info becomes obsolete
         rxi[:,] = avg_bar(x_set, c_a)
         ryi[:,] = avg_bar(y_set, c_a)
+
 #--------------------
 #@TimeThis
 def avg_bar(data, c_area):
@@ -80,7 +80,7 @@ def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
         reti[:,] = avg_hat(data_set, rho_set, rbi, cai)
 
 #--------------------
-#@TimeThis
+@TimeThis
 @requires({
     'full' : ['xdata', 'ydata', 'rho'],
     'slice' : ['rho_bar', 'c_area', 'c_mem_idx', 'retx', 'rety']
@@ -111,7 +111,7 @@ def avg_hat(data, rho, rho_bar, c_area):
         # multiply data with area
         vals = xbit[0] * xbit[1]
         # multiply data with density
-        vals = np.multiply(vals, rbit)
+        vals = np.multiply(vals, rbit[0])
         # add that to the sum of all
         xsum = np.add(xsum, vals)
     # divide by rho_bar(numpy) * total area(scalar) & return
@@ -137,13 +137,13 @@ def scalar_flucts(xdata, avg_data):
 
 #--------------------
 # TODO: scrub data structures out of there.
-#@TimeThis
+@TimeThis
 @requires({
-    'full' : ['u', 'v', 'grid_nfo'],
-    'slice' : ['gradient_nfo', 'gradient']
+    'full' : ['x', 'y'],
+    'slice' : ['grad_mem_idx', 'grad_coords_rads', 'coarse_area', 'gradient']
 })
 @ParallelNpArray(gmp)
-def uv_2D_gradient(u, v, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
+def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     """computes the gradient of velocity components in u,v using
     the information in gradient_nfo
         u, v are of shape [[data, cell_area, [lon, lat]], ...]
@@ -152,30 +152,30 @@ def uv_2D_gradient(u, v, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     """
     r_e = 6.37111*10**6
 
-    for g_idx, g_coordrad, c_area in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area):
-        neighs_u = []
-        neighs_v = []
+    for g_idx, g_coordrad, c_area, grad in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area, gradient):
+        neighs_x = []
+        neighs_y = []
         for j in range(4):
-            x_set = [u[k] for k in g_idx[j]]
-            y_set = [u[k] for k in g_idx[j]]
+            x_set = [x[k] for k in g_idx[j]]
+            y_set = [y[k] for k in g_idx[j]]
             # This is broken and wrong
             helper = dist_avg_vec(
                 x_set,
                 y_set,
                 g_coordrad[j]
             )
-            neighs_u.append(helper[0])
-            neighs_v.append(helper[1])
+            neighs_x.append(helper[0])
+            neighs_y.append(helper[1])
         d = 2 * radius(c_area) * r_e
         for j in range(2): # dx, dy
-            gradient[g_idx[0], j, 0, :,] = central_diff(
-                neighs_u[(2*j)],
-                neighs_u[(2*j)+1],
+            grad[j, 0, :,] = central_diff(
+                neighs_x[(2*j)],
+                neighs_x[(2*j)+1],
                 d
             )
-            gradient[i, j, 1, :,] = central_diff(
-                neighs_v[(2*j)],
-                neighs_v[(2*j)+1],
+            grad[j, 1, :,] = central_diff(
+                neighs_y[(2*j)],
+                neighs_y[(2*j)+1],
                 d
             )
 
@@ -187,7 +187,7 @@ def dist_avg_vec(x_values, y_values, grid_nfo):
     needs:  coordinates of center, indices of area members,
             distances of members from center,'''
     #shift lat lon grid to a local pole.
-    plon, plat = get_polar(grid_nfo[0][1], grid_nfo[0][1])
+    plon, plat = get_polar(grid_nfo[0][0], grid_nfo[0][1])
     x_vec, y_vec = rotate_multiple_to_local(
         plon,
         plat,
@@ -206,12 +206,12 @@ def dist_avg_vec(x_values, y_values, grid_nfo):
 def dist_avg_scalar(x_values, grid_nfo):
     factor = 0
     # multiply cell_area and distance from center to recieve weight
-    weights = [x_val[1]* x_rad for x_val, x_rad in itertools.izip(x_values, grid_nfo[1])]
+    weights = [x_val[1]* x_rad[1] for x_val, x_rad in itertools.izip(x_values, grid_nfo)]
     factor = np.sum(weights)
 
     average = 0
     for x_val,weight in itertools.izip(x_values, weights):
-        average = average + x_values[0] * weight
+        average = average + x_val[0] * weight
     return average / factor
 
 def central_diff(xl, xr, d):
@@ -224,17 +224,21 @@ def radius(area):
     return r
 
 def get_polar(lon, lat):
-    plon = 0.0
+
+    # move pole to the opposite side of earth.
     if 0 < lon <= np.pi:
         plon = lon - np.pi
-    elif -np.pi < lon < 0:
+    elif -np.pi <= lon < 0:
         plon = lon + np.pi
+    else:
+        plon = np.pi
 
-    plat = np.pi/2
-    if 0 < lat <= np.pi/2:
+    if 0 <= lat <= np.pi/2:
         plat = np.pi/2 - lat
+    # if point is 'below' the equator, keep plon = lon (90deree angle)
     elif -np.pi/2 <= lat < 0:
-        plat = -np.pi/2 - lat
+        plat = np.pi/2 + lat
+        plon = lon
 
     return plon, plat
 
@@ -246,7 +250,7 @@ def rotate_multiple_to_local(plon, plat, x, y):
     for xi,yi in itertools.izip(x, y):
         out = rotate_vec_to_local(
             plon, plat,
-            x, y
+            xi, yi
         )
         x_tnd.append(out[0])
         y_tnd.append(out[1])
@@ -260,10 +264,26 @@ def rotate_vec_to_local(plon, plat, x, y):
         '''
     sin_d, cos_d = rotation_jacobian(x[2][0], x[2][1], plon, plat)
 
+
     x_tnd = [x[0] * cos_d - y[0] * sin_d, x[1], x[2]]
-    y_tnd = [x[0] * cos_d + y[0] * sin_d, y[1], y[2]]
+    y_tnd = [x[0] * sin_d + y[0] * cos_d, y[1], y[2]]
 
     return x_tnd, y_tnd
+
+def rotate_vec_to_global(plon, plat, x, y):
+    '''x, y are assumed to be datapoints of the shape:
+        [data, cell_area, [lon, lat]]
+        returns the data shape
+        with data changed according to turn
+        '''
+    sin_d, cos_d = rotation_jacobian(x[2][0], x[2][1], plon, plat)
+
+    x_tnd = [x[0] * cos_d + y[0] * sin_d, x[1], x[2]]
+    y_tnd = [-x[0] * sin_d + y[0] * cos_d, y[1], y[2]]
+
+    return x_tnd, y_tnd
+
+
 
 def rotation_jacobian(lon, lat, plon, plat):
     ''' returns entries of rotation matrix according to documentation of COSMOS pp. 27'''
