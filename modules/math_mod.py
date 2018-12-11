@@ -152,6 +152,7 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     """
     r_e = 6.37111*10**6
 
+    print(np.shape(grad_mem_idx), np.shape(grad_coords_rads), np.shape(coarse_area), np.shape(gradient))
     for g_idx, g_coordrad, c_area, grad in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area, gradient):
         neighs_x = []
         neighs_y = []

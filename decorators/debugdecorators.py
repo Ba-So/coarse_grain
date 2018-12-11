@@ -7,9 +7,11 @@ class TimeThis(object):
         self._decorated = decorated
     def __call__(self, *args, **kwargs):
         before = datetime.datetime.now()
+        print('Timing.')
         x = self._decorated(*args, **kwargs)
         after = datetime.datetime.now()
-        print("Elapsed Time: {}".format(after - before))
+        diff = after - before
+        print("Elapsed Time: {}min {}s".format(diff.seconds // 60, diff.seconds % 60))
         return x
 
 class PrintArgs(object):

@@ -114,8 +114,8 @@ class CoarseGrain(Operations):
         self.gridnfo = [[cell_area[i], [xlon[i], xlat[i]]] for i in range(len(xlat))]
         self.c_mem_idx = self.IO.load_from('grid', 'area_member_idx').astype(int)
         self.c_area = self.IO.load_from('grid', 'coarse_area')
-        self.g_mem_idx = self.IO.load_from('grid', 'member_idx')
         # Hack due to wrong output of grid prepare
+        self.g_mem_idx = np.moveaxis(self.IO.load_from('grid', 'member_idx'), 0, -1)
         g_coords = np.moveaxis(self.IO.load_from('grid', 'coords'), 0, -1)
         g_rads = np.moveaxis(self.IO.load_from('grid', 'member_rad'), 0, -1)
         self.g_coords_rads = [
@@ -139,14 +139,14 @@ class CoarseGrain(Operations):
         print('computing U and V grad')
         UV_gradients = self.xy_hat_gradients(U_hat, V_hat)
         rhouv_flucts = self.rhoxy_averages('U', 'V', U_hat, V_hat)
-        self.IO.write_to('data', U_hat, name='U_HAT', attrs={'long name': 'density weighted coarse zonal wind'})
-        self.IO.write_to('data', V_hat, name='V_HAT', attrs={'long name': 'density weighted coarse meridional wind'})
+        self.IO.write_to('data', U_hat, name='U_HAT', attrs={'long_name': 'density weighted coarse zonal wind'})
+        self.IO.write_to('data', V_hat, name='V_HAT', attrs={'long_name': 'density weighted coarse meridional wind'})
         del U_hat, V_hat
         turbfric = self.turbulent_friction(rhouv_flucts, UV_gradients)
         del rhouv_flucts
-        self.IO.write_to('data', turbfric, name='T_FRIC', attrs={'long name' : 'turbulent_friction'})
+        self.IO.write_to('data', turbfric, name='T_FRIC', attrs={'long_name' : 'turbulent_friction'})
         K = self.friction_coefficient(UV_gradients, turbfric)
-        self.IO.write_to('data', K, name='K_TURB', attrs={'long name' : 'turbulent dissipation coefficient'})
+        self.IO.write_to('data', K, name='K_TURB', attrs={'long_name' : 'turbulent dissipation coefficient'})
 
     def testing(self):
         xname = 'U'
@@ -159,9 +159,9 @@ class CoarseGrain(Operations):
 
 
 if __name__ == '__main__':
-    path = '/home1/kd031/projects/icon/experiments/BCWcold'
+    path = '/home1/kd031/projects/icon/experiments/BCWfine'
     gridfile = r'iconR\dB\d{2}-grid_refined_\d{1}.nc'
-    datafile = r'BCWcold_R2B07_slice.nc'
+    datafile = r'time_slice_0.nc'
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
     cg = CoarseGrain(path, gridfile, datafile)

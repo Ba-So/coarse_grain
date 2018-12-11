@@ -9,7 +9,6 @@ import numpy as np
 # Need this to read a file timestep wise, to minimize the amount of data
 # carried around.
 class IOcontroller(object):
-    # TODO write script
 
     def __init__(self, experiment_path, grid, data):
         self.experiment_path = os.path.expanduser(experiment_path)
@@ -53,8 +52,8 @@ class IOcontroller(object):
 
     def write_to(
         self, where, data, filenum=0,
-        name='data', dtype = 'f8', dims = ('time', 'lev', 'cell2'),
-        attrs = {'long name': 'no name'}
+        name='data', dtype = 'f8', dims = ('lev', 'time', 'cell2',),
+        attrs = {'long_name': 'no name'}
     ):
         if where == 'data':
             xfile = self.datafiles[filenum]
@@ -63,16 +62,16 @@ class IOcontroller(object):
             xfile = self.gridfile[0]
         # switch rows, so ncell is back in the back
         # write to disk
-        with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
             newvar = xdata.createVariable(name, dtype, dims)
-            newvar.setncattrs(attrs)
-            xdata[name][:] = data
-            xdata.close()
+            newvar.setncatts(attrs)
+            newvar[:,] = data[:,]
 
 if __name__ == '__main__':
-    IO = IOcontroller('~/projects/icon/experiments/BCW_coarse', r'iconR\dB\d{2}-grid.nc', r'BCWcg_R\dB\d{2}_U.nc')
+    IO = IOcontroller('~/projects/icon/experiments/BCWcold', r'iconR\dB\d{2}-grid.nc', r'BCWcold_R2B07_slice_refined_4.nc')
     data = IO.load_from('grid', 'clat')
     print(data.shape)
-    data = IO.load_from('data', 'U')
+    data = IO.load_from('data', 'V')
     print(data.shape)
+    IO.write_to('data', np.moveaxis(data, 0, -1))
 
