@@ -74,7 +74,19 @@ class Grid_Preparator(object):
         self.xfile.write_to('grid', co_ar, name='coarse_area', dims=['vertex'])
 
     def compute_gradient_nfo():
-        #missing
+        ncells = self.xfile.get_dimsize_from('grid', 'vertex')
+        cell_area = np.moveaxis(self.xfile.load_from('grid', 'cell_area'), -1, 0)
+        coarse_area = np.moveaxis(self.xfile.load_from('grid', 'coarse_area'), -1, 0)
+
+        lon = self.xfile.load_from('grid', 'lon')
+        lat = self.xfile.load_from('grid', 'lat')
+        lonlat = [[loni, lati] for loni, lati in itertools.izip(lon, lat)]
+
+        coords = self.create_array([ncells, 4, 2])
+        cell_index = np.arange(0, ncells)
+
+
+
 
 
     def execute(self):
@@ -88,9 +100,10 @@ class Grid_Preparator(object):
 
         #write stuff
 
-@TimeThis
+
+@TimeThis()
 @requires({
-    'full' : ['cell_neighbour_idx', 'num_edges']
+    'full' : ['cell_neighbour_idx', 'num_edges'],
     'slice' : ['cell_index', 'a_nei_idx']
 })
 @ParallelNpArray(gmp)
@@ -138,8 +151,119 @@ def coarse_area(cell_area, area_member_idx, coarse_area):
 
 @TimeThis()
 @requires({
-    'full' : [],
-    'slice' : []
+    'full' : ['lon', 'lat'],
+    'slice' : ['coarse_area', 'cell_area', 'cell_index', 'coordinates', 'member_idx', 'member_rad']
 })
 @ParallelNpArray(gmp)
-def compute_gradient_nfo():
+def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_index, coordinates, member_idx, member_rad):
+
+    times_rad = 2
+    max_members = 1 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
+    ncells = len(lon)
+
+    for coar, cear, idx, coordi, memidx, memrad in itertools.izip(coarse_area, cell_area, cell_index, coordinates, member_idx, member_rad):
+        d = 2 * math.radius(coar)
+        coordi[:] = gradient_coordinates(lon[idx], lat[idx], d)
+
+        check_rad = times_rad * mo.radius(cear)
+
+        bounds = np.zeros((2, 2, 2))
+        candidates = np.empty([400])
+        candidates.fill(-1)
+
+
+        for j in range(4):
+            bounds[:, :, :] = max_min_bounds(coordi[j, 0], coordi[j, 1], check_rad)
+            test_lat_1 = np.all([
+                np.greater_equal(lat, bounds[0, 0, 0]),
+                np.less_equal(lat, bounds[0, 1, 0])
+            ], 0)
+
+            test_lat_2 = np.all([
+                np.greater_equal(lat, bounds[1, 0, 0]),
+                np.less_equal(lat, bounds[1, 1, 0])
+            ], 0)
+
+            test_lat = np.any([test_lat_2, test_lat_1], 0)
+
+            test_lon_1 = np.all([
+                np.greater_equal(lon, bounds[0, 0, 1]),
+                np.less_equal(lon, bounds[0, 1, 1])
+            ], 0)
+
+            test_lon_2 = np.all([
+                np.greater_equal(lon, bounds[1, 0, 1]),
+                np.less_equal(lon, bounds[1, 1, 1])
+            ], 0)
+
+            test_lon = np.any([test_lon_2, test_lon_1], 0)
+
+            test = np.all([test_lat, test_lon], 0)
+
+            helper = list(itertools.compress(range(ncells), test))
+
+            candidates[:len(helper)] = helper
+
+            check = candidates[np.where(candidates > -1)[0]]
+            cntr = 0
+            for k, kidx in enumerate(check):
+                check_r = mo.arc_len(
+                    coordi[j, :],
+                    [lon[kidx], lat[kidx]]
+                )
+                if check_r <= check_rad:
+                    memidx[j, cntr] = idx
+                    memrad[j, cntr] = check_r
+                    cntr += 1
+
+def gradient_coordinates(lon, lat, d):
+
+    lat_min = lat - d
+    lat_max = lat + d
+
+    if lat_max > np.pi/2:
+        # NP in query circle:
+        lat_max = lat_max - np.pi
+    elif lat_min < -np.pi/2:
+        # SP in query circle:
+        lat_min = lat_min + np.pi
+    d = d / np.cos(lonlat[1])
+    lon_min = lon - r
+    lon_max = lon + r
+
+    if lon_min < -np.pi:
+        lon_min = lon_min + np.pi
+    elif lon_max > np.pi:
+        lon_max = lon_max - np.pi
+
+    coords = np.array([
+        np.array([lon_min, lat_min]),
+        np.array([lon_min, lat_max]),
+        np.array([lon_max, lat_min]),
+        np.array([lon_max, lat_max])
+    ])
+
+    return coords
+
+def max_min_bounds(lon, lat, r):
+    lock = False
+    lat_min = lat - r
+    lat_max = lat + r
+    bounds = np.empty([2, 2, 2])
+    bounds.fill(-4)
+    if lat_max > np.pi/2:
+        #NP
+        bounds[0, :, :] = [[lat_min, -np.pi], [np.pi/2, np.pi]]
+        lock = True
+    elif lat_min < -np.pi/2:
+        #NP
+        bounds[0, :, :] = [[-np.pi/2, -np.pi], [lat_max, np.pi]]
+        lock = True
+    else:
+        bounds[0, :, :] = [[lat_min, -np.pi], [lat_max, np.pi]]
+
+    if not lock:
+        lat_T = np.arcsin(np.sin(lat) / np.cos(r))
+        # and so on ....
+
+
