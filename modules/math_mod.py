@@ -284,8 +284,6 @@ def rotate_vec_to_global(plon, plat, x, y):
 
     return x_tnd, y_tnd
 
-
-
 def rotation_jacobian(lon, lat, plon, plat):
     ''' returns entries of rotation matrix according to documentation of COSMOS pp. 27'''
 
@@ -297,3 +295,8 @@ def rotation_jacobian(lon, lat, plon, plat):
     cos_d = z_b / z_sq
 
     return sin_d, cos_d
+
+def num_hex_from_rings(num_rings):
+    num_hex = 1 + 6 * num_rings * (num_rings + 1) / 2
+    return num_hex
+

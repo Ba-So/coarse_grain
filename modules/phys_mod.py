@@ -41,32 +41,32 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coarse_
 
 @TimeThis
 @requires({
-    'full' : [''],
+    'full' : [],
     'slice': ['rhoxy', 'gradxy', 'tfric']
 })
 @ParallelNpArray(gmp)
 def turb_fric(rhoxy, gradxy, tfric):
     xtfric[:, ] = np.einsum(
         'kijlm,kijlm->klm',
-        rhoxy,
-        gradxy
+        irxy,
+        igxy
     )
 
 @TimeThis
 @requires({
-    'full' : [''],
+    'full' : [],
     'slice': ['gradxy', 'rhobar', 'tfric', 'imagk']
 })
 @ParallelNpArray(gmp)
 def friction_coefficient(gradxy, rhobar, tfric, imagk):
     E_sq = np.square(
-        np.substract(
+        np.subtract(
             gradxy[:, 0, 0, :,],
             gradxy[:, 1, 1, :,],
         )
     )
     F_sq = np.square(
-        np.substract(
+        np.subtract(
             gradxy[:, 0, 1, :,],
             gradxy[:, 1, 0, :,],
         )

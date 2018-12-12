@@ -37,7 +37,7 @@ class Operations(object):
 
     def xy_hat_gradients(self, xdata, ydata):
         varshape = list(np.shape(xdata))
-        varshape.insert(1, 4)
+        varshape.insert(1, 2)
         varshape.insert(2, 2)
         xy_gradient = self.create_array(varshape)
         X = self.nfo_merge(xdata)
@@ -74,7 +74,7 @@ class Operations(object):
         varshape.pop(1)
         varshape.pop(1)
         t_fric = self.create_array(varshape)
-        phys.friction_coefficient(rhoxy, gradxy, t_fric)
+        phys.turb_fric(rhoxy, gradxy, t_fric)
         return t_fric
 
     def friction_coefficient(self, gradxy, t_fric):
@@ -136,16 +136,21 @@ class CoarseGrain(Operations):
     def execute(self):
         print('computing U and V hat')
         U_hat, V_hat = self.bar_avg_2Dvec('U', 'V')
+        print('saving to file ...')
+        print(np.shape(U_hat))
+        self.IO.write_to('data', U_hat, name='U_HAT', attrs={'long_name': 'density weighted coarse zonal wind'})
+        self.IO.write_to('data', V_hat, name='V_HAT', attrs={'long_name': 'density weighted coarse meridional wind'})
         print('computing U and V grad')
         UV_gradients = self.xy_hat_gradients(U_hat, V_hat)
         rhouv_flucts = self.rhoxy_averages('U', 'V', U_hat, V_hat)
-        self.IO.write_to('data', U_hat, name='U_HAT', attrs={'long_name': 'density weighted coarse zonal wind'})
-        self.IO.write_to('data', V_hat, name='V_HAT', attrs={'long_name': 'density weighted coarse meridional wind'})
         del U_hat, V_hat
         turbfric = self.turbulent_friction(rhouv_flucts, UV_gradients)
         del rhouv_flucts
+        print('saving to file ...')
         self.IO.write_to('data', turbfric, name='T_FRIC', attrs={'long_name' : 'turbulent_friction'})
+        print('computing K...')
         K = self.friction_coefficient(UV_gradients, turbfric)
+        print('saving to file ...')
         self.IO.write_to('data', K, name='K_TURB', attrs={'long_name' : 'turbulent dissipation coefficient'})
 
     def testing(self):
