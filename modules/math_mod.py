@@ -216,6 +216,8 @@ def dist_avg_scalar(x_values, grid_nfo):
     return average / factor
 
 def central_diff(xl, xr, d):
+    ''' little routine, which computes the
+    central difference between two values with distance 2 * d'''
     return np.divide(np.subtract(xl, xr), 2 * d)
 
 def radius(area):
@@ -225,6 +227,9 @@ def radius(area):
     return r
 
 def get_polar(lon, lat):
+    ''' gets the coordinates of a shifted pole, such that
+    the given coordinate pair falls onto the equator
+    of a transformed lat lon grid'''
 
     # move pole to the opposite side of earth.
     if 0 < lon <= np.pi:
@@ -297,6 +302,16 @@ def rotation_jacobian(lon, lat, plon, plat):
     return sin_d, cos_d
 
 def num_hex_from_rings(num_rings):
+    '''computes the number of hexagons in an area made up of
+    rings of hexagons around a central hexagon'''
     num_hex = 1 + 6 * num_rings * (num_rings + 1) / 2
     return num_hex
+
+def arc_len(p_x, p_y):
+    '''computes the length of a geodesic arc on a sphere (in radians)'''
+    r = np.arccos(
+        np.sin(p_x[1]) * np.sin(p_y[1])
+        + np.cos(p_x[1]) * np.cos(p_y[1]) * np.cos(p_y[0] - p_x[0])
+    )
+    return r
 
