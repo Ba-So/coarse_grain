@@ -156,10 +156,9 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     for g_idx, g_coordrad, c_area, grad in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area, gradient):
         neighs_x = []
         neighs_y = []
-        for j in range(4):
+        for j in range(4): #E, W, N, S contributors
             x_set = [x[k] for k in g_idx[j]]
             y_set = [y[k] for k in g_idx[j]]
-            # This is broken and wrong
             helper = dist_avg_vec(
                 x_set,
                 y_set,
@@ -168,19 +167,22 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
             neighs_x.append(helper[0])
             neighs_y.append(helper[1])
         d = 2 * radius(c_area) * r_e
-        for j in range(2): # dx, dy
+        for j in range(2):
+            # dx 0: E values - W values,
+            # dy 1: N values - S values
+            # x component of vector
             grad[j, 0, :,] = central_diff(
                 neighs_x[(2*j)],
                 neighs_x[(2*j)+1],
                 d
             )
+            # y component of vector
             grad[j, 1, :,] = central_diff(
                 neighs_y[(2*j)],
                 neighs_y[(2*j)+1],
                 d
             )
 
-# TODO: scrub data structures out of there.
 #@TimeThis
 def dist_avg_vec(x_values, y_values, grid_nfo):
     '''
@@ -205,6 +207,7 @@ def dist_avg_vec(x_values, y_values, grid_nfo):
 # TODO: scrub data structures out of there.
 #@TimeThis
 def dist_avg_scalar(x_values, grid_nfo):
+    '''computes the distance averaged value of a set of scalar values'''
     factor = 0
     # multiply cell_area and distance from center to recieve weight
     weights = [x_val[1]* x_rad[1] for x_val, x_rad in itertools.izip(x_values, grid_nfo)]
@@ -215,10 +218,10 @@ def dist_avg_scalar(x_values, grid_nfo):
         average = average + x_val[0] * weight
     return average / factor
 
-def central_diff(xl, xr, d):
+def central_diff(xr, xl, d):
     ''' little routine, which computes the
     central difference between two values with distance 2 * d'''
-    return np.divide(np.subtract(xl, xr), 2 * d)
+    return np.divide(np.subtract(xr, xl), 2 * d)
 
 def radius(area):
     '''returns radius of circle on sphere in rad'''
@@ -308,7 +311,12 @@ def num_hex_from_rings(num_rings):
     return num_hex
 
 def arc_len(p_x, p_y):
-    '''computes the length of a geodesic arc on a sphere (in radians)'''
+    '''
+    computes the length of a geodesic arc on a sphere (in radians)
+    p_x : lon, lat
+    p_y : lon, lat
+    out r in radians
+    '''
     r = np.arccos(
         np.sin(p_x[1]) * np.sin(p_y[1])
         + np.cos(p_x[1]) * np.cos(p_y[1]) * np.cos(p_y[0] - p_x[0])

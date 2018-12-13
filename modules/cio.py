@@ -10,10 +10,12 @@ import numpy as np
 # carried around.
 class IOcontroller(object):
 
-    def __init__(self, experiment_path, grid, data):
+    def __init__(self, experiment_path, grid=None, data=None):
         self.experiment_path = os.path.expanduser(experiment_path)
-        self.gridfile = self.find(grid)
-        self.datafiles = self.find(data)
+        if grid:
+            self.gridfile = self.find(grid)
+        if data:
+            self.datafiles = self.find(data)
 
     def find(self, pattern):
         GridReg = re.compile(pattern, re.VERBOSE)
@@ -29,6 +31,36 @@ class IOcontroller(object):
             print('multiple files found')
             print(found)
         return found
+
+    def get_dimsize_from(self, where, dim, filenum = 0):
+        if where == 'data':
+            xfile = self.datafiles[filenum]
+        elif where == 'grid':
+            xfile = self.gridfile[0]
+        else:
+            sys.exit('invalid file: {}'.format(xfile))
+
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
+            dim_keys = [str(xkey) for xkey in xdata.dimensions.keys()]
+            if dim in dim_keys:
+                dim_val = xdata.dimensions[dim].size
+            else:
+                sys.exit('dimension {} not a dimension of file: {}'.format(dim, xfile))
+        return dim_val
+
+    def new_dimension(self, where, dimname, dimsize):
+        if where == 'data':
+            xfile = self.datafiles[filenum]
+        elif where == 'grid':
+            xfile = self.gridfile[0]
+        else:
+            sys.exit('invalid file: {}'.format(xfile))
+
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r+') as xdata:
+            if not(dimname in xdata.dimensions.keys()):
+                dim = xdata.createDimension(dimname, dimsize)
+            else:
+                pass
 
     def load_from(self, where, var, filenum = 0):
         if where == 'data':
@@ -52,20 +84,25 @@ class IOcontroller(object):
 
     def write_to(
         self, where, data, filenum=0,
-        name='data', dtype = 'f8', dims = ('lev', 'time', 'cell2',),
+        name='data', dtype = 'f8', dims = ('time', 'lev', 'cell2',),
         attrs = {'long_name': 'no name'}
     ):
         if where == 'data':
             xfile = self.datafiles[filenum]
-            xdata = np.moveaxis(data, 0, -1)
+            # switch rows, so ncell is back in the back
+            data = np.moveaxis(data, 0, -1)
         elif where == 'grid':
             xfile = self.gridfile[0]
-        # switch rows, so ncell is back in the back
+            data = np.moveaxis(data, 0, -1)
         # write to disk
-        with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
-            newvar = xdata.createVariable(name, dtype, dims)
-            newvar.setncatts(attrs)
-            newvar[:,] = data[:,]
+        try:
+            with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
+                newvar = xdata.createVariable(name, dtype, dims)
+                newvar.setncatts(attrs)
+                newvar[:,] = data[:,]
+        except:
+            with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
+                xdata[name][:,] = data[:,]
 
 if __name__ == '__main__':
     IO = IOcontroller('~/projects/icon/experiments/BCWcold', r'iconR\dB\d{2}-grid.nc', r'BCWcold_R2B07_slice_refined_4.nc')
@@ -73,5 +110,6 @@ if __name__ == '__main__':
     print(data.shape)
     data = IO.load_from('data', 'V')
     print(data.shape)
-    IO.write_to('data', np.moveaxis(data, 0, -1))
+    dim = IO.get_dimension_from('data', 'ncells')
+    print(dim)
 
