@@ -1,443 +1,384 @@
 #!/usr/bin/env python
 # coding=utf-8
-# TO DO: parallelize. This speed is unbearable.
 import argparse
-from itertools import compress
+from shutil import copyfile
+from os import path
+import sys
+import itertools
 import numpy as np
 import xarray as xr
-import custom_io as cio
-import math_op as mo
+from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array
+from decorators.debugdecorators import TimeThis, PrintArgs, PrintReturn
+from decorators.functiondecorators import requires
+import modules.cio as cio
+import modules.math_mod as math
 
-'''
-    Module containg the routines for preparing the grid_files from icon.
-    '''
+class Grid_Preparator(object):
+    def __init__(self, path, gridn, num_rings):
+        self.num_rings = num_rings
+        self.xfile = cio.IOcontroller(path, grid=gridn)
 
-def prepare_grid(path, num_rings):
-    ''' subcontractor for reading ICON grid files '''
-    # What:
-    #     reassign
-    #     rename
-    #     sort pentagon stuff
+    def create_array(self, shape, dtype='float'):
+        data_list = np.zeros(shape)
+        shrd_list = shared_np_array(np.shape(data_list), dtype)
+        shrd_list[:] = data_list[:]
+        return shrd_list
 
-    grid = cio.read_netcdfs(path)
+    def find_pentagons(self):
+        ncells = self.xfile.get_dimsize_from('grid', 'vertex')
+        num_edges = np.array([6 for i in range(0, ncells)], dtype=int)
+        cni = self.xfile.load_from('grid', 'vertices_of_vertex')
 
-    variables = ['vertex_index', 'vertices_of_vertex', 'dual_area_p']
-    grid = cio.extract_variables(grid, variables)
-    del variables
-    print(grid)
+        zeroes = np.argwhere(cni == 0)
+        #0-ncells 1-ne
 
-    new_names = {
-        'vertex': 'ncells',
-        'vlon': 'lon',
-        'vlat': 'lat',
-        'vertex_index': 'cell_idx',
-        'vertices_of_vertex': 'cell_neighbor_idx',
-        'dual_area_p': 'cell_area'
-    }
-    grid = cio.rename_dims_vars(grid, new_names)
-    del new_names
+        for i in zeroes:
+            num_edges[i[0]] = 5
+            if i[1] != 5:
+                cni[i[0], i[1]] = cni[i[0], 5]
+            else:
+                cni[i[0], 5] = cni[i[0], 4]
 
-    new_attr_names = {
-        'cell_idx': 'cell index',
-        'cell_neighbor_idx': 'cell neighbor index',
-        'cell_area': 'cell area'
-    }
-    grid = cio.rename_attr(grid, 'long_name', new_attr_names)
-    del new_attr_names
+        cni[:] -= 1
 
-    print '--------------'
-    print 'accounting for pentagons'
-    grid = account_for_pentagons(grid)
-    print '--------------'
-    print 'defining hex area members'
-    grid = define_hex_area(grid, num_rings)
-    print '--------------'
-    print 'computing total hex area'
-    grid = coarse_area(grid)
-    print '--------------'
-    print 'computing gradient_nfo'
-    grid = get_gradient_nfo(grid)
-    print '--------------'
-    print 'writing file as {}_refined_{}.nc'.format(path[:-3],num_rings)
-    new_path = path[:-3] + '_refined_{}.nc'.format(num_rings)
-    cio.write_netcdf(new_path, grid)
+        self.xfile.write_to(
+            'grid', cni, dtype = 'i2', name='vertices_of_vertex',
+            dims=['ne', 'vertex']
+        )
+        self.xfile.write_to(
+            'grid', num_edges, dtype = 'i2', name='num_edges',
+            dims=['vertex']
+        )
 
-    return None
+    def compute_hex_area_members(self):
+        # number of hexagons in coarse area
+        num_hex = math.num_hex_from_rings(self.num_rings)
 
-def account_for_pentagons(grid):
-    '''accounts for superflous neighbor indices, due to pentagons'''
+        ncells = self.xfile.get_dimsize_from('grid', 'vertex')
 
-    num_edges = np.array(
-        [6 for i in range(0,grid.dims['ncells'])]
-    )
-    cni = grid['cell_neighbor_idx'].values
+        a_nei_idx = self.create_array([ncells, num_hex], dtype='int')
+        helper = np.empty([ncells, num_hex])
+        helper.fill(-1) #masking
+        a_nei_idx[:] = helper[:]
 
-    zeroes = np.argwhere(cni == 0)
+        num_edges = self.xfile.load_from('grid', 'num_edges')
+        cell_neighbour_idx = self.xfile.load_from('grid', 'vertices_of_vertex')
+        cell_index = np.arange(0, ncells)
 
-    for i in zeroes:
-        num_edges[i[1]] = 5
-        if i[0] != 5:
-            cni[i[0],i[1]] = cni[5,i[1]]
-        else:
-            cni[5,i[1]] = cni[4,i[1]]
+        define_hex_area(cell_neighbour_idx, num_hex, num_edges, cell_index, a_nei_idx)
+        self.xfile.new_dimension('grid', 'num_hex', num_hex)
+        print('writing')
+        self.xfile.write_to(
+            'grid', a_nei_idx, dtype ='i4', name='area_member_idx',
+            dims=['num_hex','vertex']
+        )
 
-    cni -= 1
+    def compute_coarse_area(self):
+        ncells = self.xfile.get_dimsize_from('grid', 'vertex')
+        co_ar = self.create_array([ncells])
+        co_ar[:] = np.array([0.0 for i in range(0, ncells)])
+        cell_area = self.xfile.load_from('grid', 'cell_area')
+        a_nei_idx = self.xfile.load_from('grid', 'area_member_idx')
 
-    num_edges = xr.DataArray(
-        num_edges,
-        dims = ['ncells']
-    )
+        coarse_area(cell_area, a_nei_idx, co_ar)
 
-    grid  = grid.assign(num_edges = num_edges)
-    grid['cell_neighbor_idx'].values = cni
+        self.xfile.write_to('grid', co_ar, name='coarse_area', dims=['vertex'])
 
-    return grid
+    def compute_gradient_nfo(self):
+        ncells = self.xfile.get_dimsize_from('grid', 'vertex')
+        cell_area = self.xfile.load_from('grid', 'cell_area')
+        coarse_area = self.xfile.load_from('grid', 'coarse_area')
 
-def define_hex_area(grid, num_rings):
-    '''
-        finds hex tiles in num_rings rings around hex tiles
-        input:
-            grid: xr.data_set
-            num_rings: number of rings in hex_area
-        output:
-            grid: modified with info about hex_area members attached
-                new variable: 'area_member_idx' with -1 as mask
-    '''
+        lon = self.xfile.load_from('grid', 'vlon')
+        lat = self.xfile.load_from('grid', 'vlat')
 
-    # number of hexagons in an area of num_rings of hexagons
-    num_hex   = mo.num_hex_from_rings(num_rings)
+        times_rad = 2
+        max_members = 1 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
+        grad_coords = self.create_array([ncells, 4, 2])
+        grad_index = self.create_array([ncells, 4, max_members], dtype='int')
+        grad_index[:] = -1
+        grad_dist = self.create_array([ncells, 4, max_members])
+        grad_dist[:] = -1
+        cell_idx = np.arange(ncells)
+
+        compute_gradient_nfo(
+            lon, lat, coarse_area, cell_area, cell_idx, #input
+            grad_coords, grad_index, grad_dist #output
+        )
+
+        self.xfile.new_dimension('grid', 'gradnum', 4)
+        self.xfile.new_dimension('grid', 'lonlat', 2)
+        self.xfile.write_to(
+            'grid', grad_coords, name='gradient coordinates',
+            dims=['gradnum', 'lonlat', 'vertex']
+        )
+        self.xfile.new_dimension('grid', 'maxmem', max_members)
+        self.xfile.write_to(
+            'grid', grad_index, dtype = 'i4', name='gradient index',
+            dims=['gradnum', 'maxmem', 'vertex']
+        )
+        self.xfile.write_to(
+            'grid', grad_dist, name='gradient distances',
+            dims=['gradnum', 'maxmem', 'vertex']
+        )
 
 
-    # create array containing member information
-    a_nei_idx = np.empty([num_hex, grid.dims['ncells']])
-    a_nei_idx.fill(-1) # for masking
+    def execute(self):
+        print('locating pentagons...')
+        self.find_pentagons()
+        print('computing coarse area member indices...')
+        self.compute_hex_area_members()
+        print('computing coarse area...')
+        self.compute_coarse_area()
+        print('preparing gradient computation...')
+        self.compute_gradient_nfo()
 
-    num_edg   = grid['num_edges'].values
-    c_nei_idx = grid['cell_neighbor_idx'].values
+        #write stuff
 
-    # look at each and every gird cell and build neighbors...
 
-    for idx in range(grid.dims['ncells']):
+@TimeThis
+@requires({
+    'full' : ['cell_neighbour_idx', 'num_hex', 'num_edges'],
+    'slice' : ['cell_index', 'a_nei_idx']
+})
+@ParallelNpArray(gmp)
+def define_hex_area(cell_neighbour_idx, num_hex, num_edges, cell_index, a_nei_idx):
 
-        jh      = 0
-        jh_c    = 1
-        a_nei_idx[0,idx] = idx
+    for idx, ani in itertools.izip(cell_index, a_nei_idx):
+        jh = 0
+        jh_c = 1
+        ani[0] = idx
         check_num_hex = num_hex
         while jh_c < check_num_hex:
-            idx_n  =  int(a_nei_idx[jh, idx])
+            idx_n = int(ani[jh])
 
-            if (num_edg[idx_n] == 5):
+            if (num_edges[idx_n] == 5):
                 check_num_hex -= 1
                 if jh_c >= check_num_hex:
                     break
 
-            for jn in range(0, num_edg[idx_n]):
-                idx_c   = c_nei_idx[jn, idx_n]
+            for jn in range(0, num_edges[idx_n]):
+                idx_c = cell_neighbour_idx[idx_n, jn]
 
-                if idx_c in a_nei_idx[:,idx]:
+                if idx_c in ani:
                     pass
                 elif jh_c < check_num_hex:
-                    a_nei_idx[jh_c, idx] = idx_c
-                    jh_c  += 1
+                    ani[jh_c] = idx_c
+                    jh_c += 1
                 else:
                     break
-                    print 'define_hex_area: error jh_c to large'
-
-            jh   += 1
-
-    #stuff it into grid grid DataSet
-
-    area_member_idx = xr.DataArray(
-        a_nei_idx,
-        dims = ['num_hex', 'ncells']
-        )
-
-    kwargs = {'area_member_idx' : area_member_idx}
-
-    grid  = grid.assign(**kwargs)
-
-    return grid
-
-def coarse_area(grid):
-    '''
-        Sums the areas of its members in area_member_idx to coarse_area
-        input:
-            grid : xr.dataset containing 'cell_area', 'area_member_idx'
-        returns:
-            grid : xr.dataset with variable 'coarse_area' added
-    '''
-
-    co_ar = np.array([0.0 for i in range(0, grid.dims['ncells'])])
-    cell_a = grid['cell_area'].values
-    a_nei_idx = grid['area_member_idx'].values
+                    print('define_hex_area: error jh_c too large')
+            jh += 1
 
 
+@TimeThis
+@requires({
+    'full' : ['cell_area'],
+    'slice' : ['area_member_idx', 'coarse_area']
+})
+@ParallelNpArray(gmp)
+def coarse_area(cell_area, area_member_idx, coarse_area):
+    ca = []
 
-    for i in range(grid.dims['ncells']):
-        areas = cell_a[np.where(a_nei_idx[:,i] > -1)[0]]
-        co_ar[i] = np.sum(areas)
+    for ami in itertools.izip(area_member_idx):
+        areas = cell_area[np.where(ami > -1)[0]]
+        ca.append(np.sum(areas))
+    coarse_area[:] = ca
 
-    coarse_a = xr.DataArray(
-        co_ar,
-        dims=['ncells'])
-    kwargs = {'coarse_area' : coarse_a}
-    grid = grid.assign(**kwargs)
+@TimeThis
+@requires({
+    'full' : ['lon', 'lat'],
+    'slice' : ['coarse_area', 'cell_area', 'cell_idx',
+               'grad_coords', 'grad_idx', 'grad_dist']
+})
+@ParallelNpArray(gmp)
+def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords, grad_idx, grad_dist):
+    '''return:
+        the coordinates of E,W,N,S points for the computation of the gradients
+        [ncells, i, j] i{0..3} E,W,N,S ; j{0,1} lon, lat
+        the indices of points around those points to be distance averaged over
+        [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
+        the distance of points around those points for distance average
+        [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
+        '''
 
-    return grid
-
-def get_gradient_nfo(grid):
-    '''
-        computes the coordinates of neighbors for gradient computations
-        input:
-            grid : xr.dataset containing,
-                'coarse_area', 'cell_area'
-        output:
-            grid, updated with,
-                coords: contains the neighbor point coordinates
-                    numpy([ncells, corners, [lon, lat])
-                members_idx: contains the indices of members
-                    [ncells, numpy(idxcs)]
-                members_rad: contains the relative distance of members to center
-                    [ncells, numpy(radii)]
-    '''
-    ncells = grid.dims['ncells']
-    coarse_area = grid['coarse_area'].values
-    cell_area = grid['cell_area'].values
-    lon = grid['lon'].values
-    lat = grid['lat'].values
-
-    # compute the coordinates of the four corners for gradient
-    print(' --------------')
-    print(' computing corner coordinates')
-    coords = np.empty([ncells, 4, 2])
-    coords.fill(0)
-    for i in range(ncells):
-        lonlat  = [lon[i], lat[i]]
-        area    = coarse_area[i]
-        r  = 2 * mo.radius(area)
-        coords[i, :, :] = gradient_coordinates(lonlat, r)
-
-    # logic: num_hexagons in area of r = d_hexagon = 2 * r_hexagon
-    #     <= num_hexagons in d rings of hexagons
-    # number of hexagons in an area of num_rings of hexagons
     times_rad = 2
-    max_members = 1 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
+    ncells = len(lon)
+    start = 0
 
-    # compute radii for finding members
-    print(' --------------')
-    print(' computing bounding radii')
-    check_rad = np.empty([ncells], dtype = float)
-    check_rad.fill(0)
-    for i in range(ncells):
-        check_rad[i] = times_rad * mo.radius(cell_area[i])
+    for i, idx in enumerate(cell_idx):
 
-    test_rad = np.equal(check_rad, 0)
-    if True in test_rad:
-        print("bad stuff just happened")
-        return None
-    del test_rad
+        d = 2 * math.radius(coarse_area[i])
+        check_rad = times_rad * math.radius(cell_area[i])
 
+        grad_coordi = gradient_coordinates(lon[idx], lat[idx], d)
+        grad_coords[i, :] = grad_coordi
 
-    # get bounding box to find members
-    print(' --------------')
-    print(' computing bounding boxes')
-    bounds = np.empty([ncells, 4, 2, 2, 2])
-    bounds.fill(0)
-    for i in range(ncells):
-        for j in range(4):
-            lonlat = coords[i, j, :]
-            bounds[i, j, :, :, :] = max_min_bounds(lonlat, check_rad[i])
+        for j in range(4): # in range(E,W,N,S)
+            bounds = max_min_bounds(
+                grad_coordi[j, 0], grad_coordi[j, 1], check_rad
+            )
 
-    print(' --------------')
-    print(' finding members for gradient approximation')
-    candidates = np.empty([ncells, 4, 400], dtype = int)
-    candidates.fill(-1)
-    print('   --------------')
-    print('   checking bounds')
-
-    for i in range(ncells):
-        for j in range(4):
-            # using numpy class for highest possible optimization!
             test_lat_1 = np.all([
-                np.greater_equal(lat, bounds[i, j, 0, 0, 0]),
-                np.less_equal(lat, bounds[i, j, 0, 1, 0])
+                np.greater_equal(lat, bounds[0, 0, 1]),
+                np.less_equal(lat, bounds[0, 1, 1])
             ], 0)
 
             test_lat_2 = np.all([
-                np.greater_equal(lat, bounds[i, j, 1, 0, 0]),
-                np.less_equal(lat, bounds[i, j, 1, 1, 0])
+                np.greater_equal(lat, bounds[1, 0, 1]),
+                np.less_equal(lat, bounds[1, 1, 1])
             ], 0)
 
             test_lat = np.any([test_lat_2, test_lat_1], 0)
 
             test_lon_1 = np.all([
-                np.greater_equal(lon, bounds[i, j, 0, 0, 1]),
-                np.less_equal(lon, bounds[i, j, 0, 1, 1])
+                np.greater_equal(lon, bounds[0, 0, 0]),
+                np.less_equal(lon, bounds[0, 1, 0])
             ], 0)
 
             test_lon_2 = np.all([
-                np.greater_equal(lon, bounds[i, j, 1, 0, 1]),
-                np.less_equal(lon, bounds[i, j, 1, 1, 1])
+                np.greater_equal(lon, bounds[1, 0, 0]),
+                np.less_equal(lon, bounds[1, 1, 0])
             ], 0)
 
             test_lon = np.any([test_lon_2, test_lon_1], 0)
 
-            test = np.all([test_lat, test_lon], 0)
+            test = np.all([test_lon, test_lat], 0)
 
-            helper = list(compress(range(ncells), test))
-            candidates[i, j, :len(helper)] = helper
+            check = list(itertools.compress(range(ncells), test))
 
-    print('   --------------')
-    print('   checking candidates')
-    member_idx = np.empty([ncells, 4, max_members], dtype = int)
-    member_idx.fill(-1)
-    member_rad = np.empty([ncells, 4, max_members], dtype = float)
-    member_rad.fill(-1)
-    for i in range(ncells):
-        for j in range(4):
-            check = candidates[i , j, np.where(candidates[i,j,:] > -1)[0]]
             cntr = 0
-            for k, idx in enumerate(check):
-                check_r = mo.arc_len(
-                        coords[i, j, :],
-                        [lon[idx], lat[idx]])
-                if check_r <= check_rad[i]:
-                    member_idx[i, j, cntr] = idx
-                    member_rad[i, j, cntr] = check_r
+            for k, kidx in enumerate(check):
+                check_r = math.arc_len(
+                    grad_coordi[j, :],
+                    [lon[kidx], lat[kidx]]
+                )
+                if check_r <= check_rad:
+                    grad_idx[i, j, cntr] = idx
+                    grad_dist[i, j, cntr] = check_r
                     cntr += 1
 
-    #incorporate
-    coords = xr.DataArray(
-        coords,
-        dims = ['ncells','num_four','num_two'])
-    member_idx = xr.DataArray(
-        member_idx,
-        dims= ['ncells','num_four','max_members'])
-    member_rad = xr.DataArray(
-        member_rad,
-        dims= ['ncells','num_four','max_members'])
-
-    kwargs = {
-        'coords' : coords,
-        'member_idx' : member_idx,
-        'member_rad' : member_rad
-        }
-
-    grid  = grid.assign(**kwargs)
-
-    return grid
-
-def gradient_coordinates(lonlat, r):
+def gradient_coordinates(lon, lat, d):
     '''
-        computes the locations around which to
-        compute the averages for the gradient computation
+        computes the locations to the West, East and South, North
+        to be used for the computation of the gradients.
+        Values around these poits will later be Distance-Averaged onto
+        these points.
         input:
-            lonlat : array [lon, lat]
-            r : radius of area to search in
+            lon, lat: coordinates of center point
+            d:        Distance of W,E,S,N points from center´
+        returns:
+            coords [i, j]: i {0..3}: E,W,N,S, j {0,1}: lon, lat
     '''
 
+    lat_min = lat - d
+    lat_max = lat + d
 
-
-    lat_min = lonlat[1] - r
-    lat_max = lonlat[1] + r
     if lat_max > np.pi/2:
-        # northpole in query circle:
+        # NP in query circle:
         lat_max = lat_max - np.pi
     elif lat_min < -np.pi/2:
-        # southpole in query circle:
+        # SP in query circle:
         lat_min = lat_min + np.pi
-    r = r / np.cos(lonlat[1])
-    lon_min = lonlat[0] - r
-    lon_max = lonlat[0] + r
+    d = d / np.cos(lat)
+    lon_min = lon - d
+    lon_max = lon + d
 
-    # in case lon passes the median
     if lon_min < -np.pi:
         lon_min = lon_min + np.pi
     elif lon_max > np.pi:
         lon_max = lon_max - np.pi
 
     coords = np.array([
-        np.array([lon_min, lat_min]),
-        np.array([lon_min, lat_max]),
-        np.array([lon_max, lat_min]),
-        np.array([lon_max, lat_max])
-        ])
+        np.array([lon_max, lat]), #East Point
+        np.array([lon_min, lat]), #West Point
+        np.array([lon, lat_max]), #North Point
+        np.array([lon, lat_min])  #South Point
+    ])
     return coords
 
-def max_min_bounds(lonlat, r):
+def max_min_bounds(lon, lat, r):
     '''
-        computes the maximum and minimum lat and lon values on a circle on a sphere
+        computes the maximum and minimum lat and lon
+        values on a circle on a spere.
         input:
-            lonlat : array [lat, lon]
-            r : radius of circle on sphere
+            lon, lat - coordinates of center point
+            r        - radius of area to be bounded
         output:
-            bounds : array [i, j, k]
-                i = {0,1} for special cases around poles two sets
-                j = {0,1} für {min, max}
-                k = {0,1} für {lat, lon}
-            '''
-    # get radius
-    # coords[0,:] latitude values
-    # coords[1,:] longditude values
-    # u is merdional wind, along longditudes
-    #     -> dx along longditude
-    # v is zonal wind, along latitudes
-    #     -> dy along latitude
-    # coords[:,:2] values for dx
-    # coords[:,:2] values for dy
-    # computing minimum and maximum latitudes
-    lock = False
-    lat_min = lonlat[1] - r
-    lat_max = lonlat[1] + r
+            bounds: array [i, j, k]
+                i = {0, 1} for special cases around tho poles
+                j = {0, 1} containig (W, S)-min and (E, N)-max
+                k = {0, 1} [lon, lat]
+    '''
+
+    ispole = False
+    lat_min = lat - r
+    lat_max = lat + r
     bounds = np.empty([2, 2, 2])
     bounds.fill(-4)
     if lat_max > np.pi/2:
-        # northpole in query circle:
-        bounds[0, :, :] = [[lat_min, -np.pi],[np.pi/2, np.pi]]
-        lock = True
+        #NP
+        bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, np.pi/2]]
+        ispole = True
     elif lat_min < -np.pi/2:
-        # southpole in query circle:
-        bounds[0, :, :] = [[-np.pi/2, -np.pi],[lat_max, np.pi]]
-        lock = True
+        #SP
+        bounds[0, :, :] = [[-np.pi, -np.pi/2], [np.pi, lat_max]]
+        ispole = True
     else:
-        # no pole in query circle
-        bounds[0, :, :] = [[lat_min, -np.pi], [lat_max, np.pi]]
-  # computing minimum and maximum longditudes:
-    if not lock:
-        lat_T = np.arcsin(np.sin(lonlat[1])/np.cos(r))
-        d_lon = np.arccos(
-            (np.cos(r) - np.sin(lat_T) * np.sin(lonlat[1]))
-            /(np.cos(lat_T)*np.cos(lonlat[1])))
-        lon_min = lonlat[0] - d_lon
-        lon_max = lonlat[0] + d_lon
+        bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, lat_max]]
 
+    #lon bounds only neccesarry when no pole in query circle
+    if not ispole:
+        #helper
+        lat_t = np.arcsin(np.sin(lat) / np.cos(r))
+        #computing delta longditude
+        np.seterr(all='raise')
+        try:
+            d_lon = np.arccos(
+                (np.cos(r) - np.sin(lat_t) * np.sin(lat))
+                /(np.cos(lat_t) * np.cos(lat))
+            )
+        except:
+            sys.exit('weird value: r{}, latt{}, lat{}'.format(r, lat_t, lat))
+        lon_min = lon - d_lon
+        lon_max = lon + d_lon
+
+        # Funky stuff in case of meridan in query
         if lon_min < -np.pi:
             bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 1] = lon_min + 2 * np.pi
-            bounds[0, 1, 1] = np.pi
+            bounds[0, 0, 0] = lon_min + 2 * np.pi
+            bounds[0, 1, 0] = np.pi
             #and
-            bounds[1, 0, 1] = - np.pi
-            bounds[1, 1, 1] = lon_max
+            bounds[1, 0, 0] = - np.pi
+            bounds[1, 1, 0] = lon_max
         elif lon_max > np.pi:
             bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 1] = lon_min
-            bounds[0, 1, 1] = np.pi
+            bounds[0, 0, 0] = lon_min
+            bounds[0, 1, 0] = np.pi
             #and
-            bounds[1, 0, 1] = - np.pi
-            bounds[1, 1, 1] = lon_max - 2 * np.pi
+            bounds[1, 0, 0] = - np.pi
+            bounds[1, 1, 0] = lon_max - 2 * np.pi
         else:
-            bounds[0, 0, 1] = lon_min
-            bounds[0, 1, 1] = lon_max
+            bounds[0, 0, 0] = lon_min
+            bounds[0, 1, 0] = lon_max
+
     return bounds
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Prepare ICON gridfiles for Coarse-Graining.')
+    parser = argparse.ArgumentParser(description='Prepare ICON grid-files for Coarse-Graining.')
     parser.add_argument(
         'path_to_file',
         metavar = 'path',
         type = str,
         nargs = '+',
         help='a string specifying the path to the gridfile'
+    )
+    parser.add_argument(
+        'grid_name',
+        metavar = 'gridn',
+        type = str,
+        nargs = '+',
+        help='a string specifying the name of the gridfile'
     )
     parser.add_argument(
         'num_rings',
@@ -448,8 +389,16 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     print(
-        'preparing the grid file {} for coarse graining over {} rings'
-    ).format(args.path_to_file[0], args.num_rings[0])
-    prepare_grid(args.path_to_file[0], args.num_rings[0])
+        'preparing the gridfile {} for coarse grainig over {} rings.'
+    ).format(path.join(args.path_to_file[0], args.grid_name[0]), args.num_rings[0])
+    new_name = args.grid_name[0][:-3] +  '_refined_{}.nc'.format(args.num_rings[0])
+    copyfile(
+        path.join(args.path_to_file[0], args.grid_name[0]),
+        path.join(args.path_to_file[0], new_name)
+    )
+    gmp.set_parallel_proc(True)
+    gmp.set_num_procs(12)
+    GP = Grid_Preparator(args.path_to_file[0], new_name, args.num_rings[0])
+    GP.execute()
 
 
