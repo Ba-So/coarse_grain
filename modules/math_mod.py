@@ -2,6 +2,7 @@
 # coding=utf-8
 import numpy as np
 import itertools
+import sys
 from decorators.debugdecorators import TimeThis, PrintArgs
 from decorators.paralleldecorators import gmp, ParallelNpArray
 from decorators.functiondecorators import requires
@@ -28,7 +29,11 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
         takes data of kind [[xdata, cell_area, [lat, lon], ...]
         returns numpy'''
     for idx_set, c_a, reti in itertools.izip(c_mem_idx, c_area, ret):
-        reti[:,] = avg_bar([data[j] for j in idx_set], c_a)
+        try:
+            idx_set = idx_set[np.where(idx_set > -1)[0]]
+            reti[:,] = avg_bar([data[j] for j in idx_set], c_a)
+        except:
+            sys.exit('Mist idx_set:{}, j:{}'.format(idx_set, j))
 
 #--------------------
 #@TimeThis
@@ -40,6 +45,7 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
 def bar_2Dvector(xdata, ydata, c_area, c_mem_idx, retx, rety):
     #TODO figure out how to have a dual pipe back
     for idx_set, c_a, rxi, ryi in itertools.izip(c_mem_idx, c_area, retx, rety):
+        idx_set = idx_set[np.where(idx_set > -1)[0]]
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
         plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
@@ -88,6 +94,7 @@ def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
 @ParallelNpArray(gmp)
 def hat_2Dvector(xdata, ydata, rho, rho_bar, c_area, c_mem_idx, retx, rety):
     for idx_set, r_b_i, c_a_i, rxi, ryi in itertools.izip(c_mem_idx, rho_bar, c_area, retx, rety):
+        idx_set = idx_set[np.where(idx_set > -1)[0]]
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
         plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
@@ -157,8 +164,9 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
         neighs_x = []
         neighs_y = []
         for j in range(4): #E, W, N, S contributors
-            x_set = [x[k] for k in g_idx[j]]
-            y_set = [y[k] for k in g_idx[j]]
+            g_idxj = g_idx[np.where(g_idx > -1)[0]]
+            x_set = [x[k] for k in g_idxj]
+            y_set = [y[k] for k in g_idxj]
             helper = dist_avg_vec(
                 x_set,
                 y_set,
@@ -317,9 +325,12 @@ def arc_len(p_x, p_y):
     p_y : lon, lat
     out r in radians
     '''
-    r = np.arccos(
-        np.sin(p_x[1]) * np.sin(p_y[1])
-        + np.cos(p_x[1]) * np.cos(p_y[1]) * np.cos(p_y[0] - p_x[0])
-    )
+    try:
+        r = np.arccos(
+            np.sin(p_x[1]) * np.sin(p_y[1])
+            + np.cos(p_x[1]) * np.cos(p_y[1]) * np.cos(p_y[0] - p_x[0])
+        )
+    except:
+        sys.exit('mist: p_x1{}, p_x2{}, p_y1{}, p_y2{}'.format(p_x[0], p_x[1], p_y[0], p_y[1]))
     return r
 

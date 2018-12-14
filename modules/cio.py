@@ -48,7 +48,7 @@ class IOcontroller(object):
                 sys.exit('dimension {} not a dimension of file: {}'.format(dim, xfile))
         return dim_val
 
-    def new_dimension(self, where, dimname, dimsize):
+    def new_dimension(self, where, dimname, dimsize, filenum=0):
         if where == 'data':
             xfile = self.datafiles[filenum]
         elif where == 'grid':
@@ -95,13 +95,13 @@ class IOcontroller(object):
             xfile = self.gridfile[0]
             data = np.moveaxis(data, 0, -1)
         # write to disk
-        try:
-            with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
+            var_keys = [str(xkey) for xkey in xdata.variables.keys()]
+            if name not in var_keys:
                 newvar = xdata.createVariable(name, dtype, dims)
                 newvar.setncatts(attrs)
                 newvar[:,] = data[:,]
-        except:
-            with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
+            else:
                 xdata[name][:,] = data[:,]
 
 if __name__ == '__main__':
