@@ -84,7 +84,7 @@ class IOcontroller(object):
 
     def write_to(
         self, where, data, filenum=0,
-        name='data', dtype = 'f8', dims = ('time', 'lev', 'cell2',),
+        name='data', dtype = 'f8', dims = ('time', 'lev', 'ncells',),
         attrs = {'long_name': 'no name'}
     ):
         if where == 'data':
