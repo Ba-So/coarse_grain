@@ -347,38 +347,43 @@ def max_min_bounds(lon, lat, r):
     # ----------- lons ------------
     # computing tangent longditudes to circle on sphere
     # compare Bronstein
-    lat_t = np.arcsin(np.sin(lat) / np.cos(r))
-    # computing delta longditude
     np.seterr(all='raise')
+    Flag = False
     try:
-        d_lon = np.arccos(
-            (np.cos(r) - np.sin(lat_t) * np.sin(lat))
-            /(np.cos(lat_t) * np.cos(lat))
-        )
+        lat_t = np.arcsin(np.sin(lat) / np.cos(r))
     except:
-        sys.exit('weird value: r{}, latt{}, lat{}'.format(r, lat_t, lat))
-    lon_min = lon - d_lon
-    lon_max = lon + d_lon
+        Flag = True
+    # computing delta longditude
+    if not Flag:
+        try:
+            d_lon = np.arccos(
+                (np.cos(r) - np.sin(lat_t) * np.sin(lat))
+                /(np.cos(lat_t) * np.cos(lat))
+            )
+        except:
+            sys.exit('weird value: r{}, latt{}, lat{}'.format(r, lat_t, lat))
+        lon_min = lon - d_lon
+        lon_max = lon + d_lon
 
-    # Funky stuff in case of meridan in query
-    if lon_min < -np.pi:
-        bounds[1, :, :] = bounds[0, :, :]
-        bounds[0, 0, 0] = lon_min + 2 * np.pi # to be min value
-        bounds[0, 1, 0] = np.pi # to be max value
-        #and
-        bounds[1, 0, 0] = - np.pi # to be min value
-        bounds[1, 1, 0] = lon_max # to be max value
-    elif lon_max > np.pi:
-        bounds[1, :, :] = bounds[0, :, :]
-        bounds[0, 0, 0] = lon_min # to be min value
-        bounds[0, 1, 0] = np.pi # to be max value
-        #and
-        bounds[1, 0, 0] = - np.pi # to be min value
-        bounds[1, 1, 0] = lon_max - 2 * np.pi # to be max value
+        # Funky stuff in case of meridan in query
+        if lon_min < -np.pi:
+            bounds[1, :, :] = bounds[0, :, :]
+            bounds[0, 0, 0] = lon_min + 2 * np.pi # to be min value
+            bounds[0, 1, 0] = np.pi # to be max value
+            #and
+            bounds[1, 0, 0] = - np.pi # to be min value
+            bounds[1, 1, 0] = lon_max # to be max value
+        elif lon_max > np.pi:
+            bounds[1, :, :] = bounds[0, :, :]
+            bounds[0, 0, 0] = lon_min # to be min value
+            bounds[0, 1, 0] = np.pi # to be max value
+            #and
+            bounds[1, 0, 0] = - np.pi # to be min value
+            bounds[1, 1, 0] = lon_max - 2 * np.pi # to be max value
 
-    else:
-        bounds[0, 0, 0] = lon_min # to be min value
-        bounds[0, 1, 0] = lon_max # to be max value
+        else:
+            bounds[0, 0, 0] = lon_min # to be min value
+            bounds[0, 1, 0] = lon_max # to be max value
 
     return bounds
 
