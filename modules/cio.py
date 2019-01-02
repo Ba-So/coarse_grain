@@ -98,10 +98,13 @@ class IOcontroller(object):
         with Dataset(os.path.join(self.experiment_path, xfile), 'r+', format='NETCDF4_CLASSIC') as xdata:
             var_keys = [str(xkey) for xkey in xdata.variables.keys()]
             if name not in var_keys:
+                print('writing new variable to file...')
                 newvar = xdata.createVariable(name, dtype, dims)
                 newvar.setncatts(attrs)
                 newvar[:,] = data[:,]
             else:
+                print('editing variable values in file...')
+                print(name)
                 xdata[name][:,] = data[:,]
 
 if __name__ == '__main__':

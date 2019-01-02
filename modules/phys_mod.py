@@ -46,10 +46,10 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coarse_
 })
 @ParallelNpArray(gmp)
 def turb_fric(rhoxy, gradxy, tfric):
-    xtfric[:, ] = np.einsum(
+    tfric[:, ] = np.einsum(
         'kijlm,kijlm->klm',
-        irxy,
-        igxy
+        rhoxy,
+        gradxy
     )
 
 @TimeThis

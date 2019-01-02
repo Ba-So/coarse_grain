@@ -159,12 +159,11 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
     """
     r_e = 6.37111*10**6
 
-    print(np.shape(grad_mem_idx), np.shape(grad_coords_rads), np.shape(coarse_area), np.shape(gradient))
     for g_idx, g_coordrad, c_area, grad in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area, gradient):
         neighs_x = []
         neighs_y = []
         for j in range(4): #E, W, N, S contributors
-            g_idxj = g_idx[np.where(g_idx > -1)[0]]
+            g_idxj = g_idx[j, np.where(g_idx[j] > -1)[0]]
             x_set = [x[k] for k in g_idxj]
             y_set = [y[k] for k in g_idxj]
             helper = dist_avg_vec(
@@ -218,13 +217,21 @@ def dist_avg_scalar(x_values, grid_nfo):
     '''computes the distance averaged value of a set of scalar values'''
     factor = 0
     # multiply cell_area and distance from center to recieve weight
-    weights = [x_val[1]* x_rad[1] for x_val, x_rad in itertools.izip(x_values, grid_nfo)]
+    weights = [x_val[0]* x_rad for x_val, x_rad in itertools.izip(x_values, grid_nfo[1])]
     factor = np.sum(weights)
 
     average = 0
     for x_val,weight in itertools.izip(x_values, weights):
         average = average + x_val[0] * weight
-    return average / factor
+    retval = 0.0
+    np.seterr(all='raise')
+    try:
+        retval = average / factor
+    except:
+        print('avg {}'.format(average))
+        print('fac {}'.format(factor))
+        sys.exit('tjoar: {}'.format(average))
+    return retval
 
 def central_diff(xr, xl, d):
     ''' little routine, which computes the
