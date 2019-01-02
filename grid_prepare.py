@@ -350,6 +350,7 @@ def max_min_bounds(lon, lat, r):
     np.seterr(all='raise')
     Flag = False
     try:
+        # breaks down close at poles.
         lat_t = np.arcsin(np.sin(lat) / np.cos(r))
     except:
         Flag = True
