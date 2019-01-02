@@ -42,11 +42,11 @@ class Grid_Preparator(object):
         cni[:] -= 1
 
         self.xfile.write_to(
-            'grid', cni, dtype = 'i2', name='vertices_of_vertex',
+            'grid', cni, dtype = 'i4', name='vertices_of_vertex',
             dims=['ne', 'vertex']
         )
         self.xfile.write_to(
-            'grid', num_edges, dtype = 'i2', name='num_edges',
+            'grid', num_edges, dtype = 'i4', name='num_edges',
             dims=['vertex']
         )
 
@@ -69,7 +69,7 @@ class Grid_Preparator(object):
         self.xfile.new_dimension('grid', 'num_hex', num_hex)
         print('writing')
         self.xfile.write_to(
-            'grid', a_nei_idx, dtype ='i4', name='area_member_idx',
+            'grid', a_nei_idx, dtype='i4', name='area_member_idx',
             dims=['num_hex','vertex']
         )
 
@@ -109,17 +109,20 @@ class Grid_Preparator(object):
         self.xfile.new_dimension('grid', 'gradnum', 4)
         self.xfile.new_dimension('grid', 'lonlat', 2)
         self.xfile.write_to(
-            'grid', grad_coords, name='gradient coordinates',
-            dims=['gradnum', 'lonlat', 'vertex']
+            'grid', grad_coords, name='grad_coords',
+            dims=['gradnum', 'lonlat', 'vertex'],
+            attrs={'long_name': 'gradient coordinates'}
         )
         self.xfile.new_dimension('grid', 'maxmem', max_members)
         self.xfile.write_to(
-            'grid', grad_index, dtype = 'i4', name='gradient index',
-            dims=['gradnum', 'maxmem', 'vertex']
+            'grid', grad_index, dtype='i4', name='grad_idx',
+            dims=['gradnum', 'maxmem', 'vertex'],
+            attrs={'long_name': 'gradient indices'}
         )
         self.xfile.write_to(
-            'grid', grad_dist, name='gradient distances',
-            dims=['gradnum', 'maxmem', 'vertex']
+            'grid', grad_dist, name='grad_dist',
+            dims=['gradnum', 'maxmem', 'vertex'],
+            attrs={'long_name': 'gradient distances'}
         )
 
 
@@ -202,7 +205,7 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
         [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
         '''
 
-    times_rad = 2
+    times_rad = 2.1
     ncells = len(lon)
     start = 0
 
@@ -254,9 +257,12 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
                     [lon[kidx], lat[kidx]]
                 )
                 if check_r <= check_rad:
-                    grad_idx[i, j, cntr] = idx
+                    grad_idx[i, j, cntr] = kidx
                     grad_dist[i, j, cntr] = check_r
                     cntr += 1
+            if cntr == 0:
+                sys.exit('no one found \n {} \n {}'.format(grad_coordi, bounds))
+
 
 def gradient_coordinates(lon, lat, d):
     '''
@@ -276,18 +282,30 @@ def gradient_coordinates(lon, lat, d):
 
     if lat_max > np.pi/2:
         # NP in query circle:
-        lat_max = lat_max - np.pi
+        lat_max = np.pi/2
     elif lat_min < -np.pi/2:
         # SP in query circle:
-        lat_min = lat_min + np.pi
-    d = d / np.cos(lat)
-    lon_min = lon - d
-    lon_max = lon + d
+        lat_min = -np.pi/2
 
-    if lon_min < -np.pi:
-        lon_min = lon_min + np.pi
+    d_lon = d / np.cos(lat)
+    lon_min = lon - d_lon
+    lon_max = lon + d_lon
+
+    # project points beyond 180E/180W onto W/E
+    # make 180 unique-> project all -180 onto 180!
+    if d >= np.pi:
+        # happens in case of pole
+        lon_min = -np.pi/2
+        lon_max =  np.pi/2
+        # to have a at least somewhat
+        # meaningful definition for the poles
+        # gradients break down anyway
+    elif lon_min <= -np.pi:
+        # lon_min <= -180 (180W) => project onto E
+        lon_min = lon_min + 2 * np.pi
     elif lon_max > np.pi:
-        lon_max = lon_max - np.pi
+        # lon_min > 180 (180E) => project onto W
+        lon_max = lon_max - 2* np.pi
 
     coords = np.array([
         np.array([lon_max, lat]), #East Point
@@ -318,49 +336,49 @@ def max_min_bounds(lon, lat, r):
     bounds.fill(-4)
     if lat_max > np.pi/2:
         #NP
-        bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, np.pi/2]]
-        ispole = True
+        lat_max = np.pi/2
+
     elif lat_min < -np.pi/2:
         #SP
-        bounds[0, :, :] = [[-np.pi, -np.pi/2], [np.pi, lat_max]]
-        ispole = True
+        lat_min < -np.pi/2
+
+    # Give standard values
+    bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, lat_max]]
+    # ----------- lons ------------
+    # computing tangent longditudes to circle on sphere
+    # compare Bronstein
+    lat_t = np.arcsin(np.sin(lat) / np.cos(r))
+    # computing delta longditude
+    np.seterr(all='raise')
+    try:
+        d_lon = np.arccos(
+            (np.cos(r) - np.sin(lat_t) * np.sin(lat))
+            /(np.cos(lat_t) * np.cos(lat))
+        )
+    except:
+        sys.exit('weird value: r{}, latt{}, lat{}'.format(r, lat_t, lat))
+    lon_min = lon - d_lon
+    lon_max = lon + d_lon
+
+    # Funky stuff in case of meridan in query
+    if lon_min < -np.pi:
+        bounds[1, :, :] = bounds[0, :, :]
+        bounds[0, 0, 0] = lon_min + 2 * np.pi # to be min value
+        bounds[0, 1, 0] = np.pi # to be max value
+        #and
+        bounds[1, 0, 0] = - np.pi # to be min value
+        bounds[1, 1, 0] = lon_max # to be max value
+    elif lon_max > np.pi:
+        bounds[1, :, :] = bounds[0, :, :]
+        bounds[0, 0, 0] = lon_min # to be min value
+        bounds[0, 1, 0] = np.pi # to be max value
+        #and
+        bounds[1, 0, 0] = - np.pi # to be min value
+        bounds[1, 1, 0] = lon_max - 2 * np.pi # to be max value
+
     else:
-        bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, lat_max]]
-
-    #lon bounds only neccesarry when no pole in query circle
-    if not ispole:
-        #helper
-        lat_t = np.arcsin(np.sin(lat) / np.cos(r))
-        #computing delta longditude
-        np.seterr(all='raise')
-        try:
-            d_lon = np.arccos(
-                (np.cos(r) - np.sin(lat_t) * np.sin(lat))
-                /(np.cos(lat_t) * np.cos(lat))
-            )
-        except:
-            sys.exit('weird value: r{}, latt{}, lat{}'.format(r, lat_t, lat))
-        lon_min = lon - d_lon
-        lon_max = lon + d_lon
-
-        # Funky stuff in case of meridan in query
-        if lon_min < -np.pi:
-            bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 0] = lon_min + 2 * np.pi
-            bounds[0, 1, 0] = np.pi
-            #and
-            bounds[1, 0, 0] = - np.pi
-            bounds[1, 1, 0] = lon_max
-        elif lon_max > np.pi:
-            bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 0] = lon_min
-            bounds[0, 1, 0] = np.pi
-            #and
-            bounds[1, 0, 0] = - np.pi
-            bounds[1, 1, 0] = lon_max - 2 * np.pi
-        else:
-            bounds[0, 0, 0] = lon_min
-            bounds[0, 1, 0] = lon_max
+        bounds[0, 0, 0] = lon_min # to be min value
+        bounds[0, 1, 0] = lon_max # to be max value
 
     return bounds
 

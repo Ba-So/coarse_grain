@@ -113,12 +113,10 @@ class CoarseGrain(Operations):
         cell_area = self.IO.load_from('grid', 'cell_area')
         self.gridnfo = [[cell_area[i], [xlon[i], xlat[i]]] for i in range(len(xlat))]
         self.c_mem_idx = self.IO.load_from('grid', 'area_member_idx')
-        print(self.c_mem_idx[0:3,])
         self.c_area = self.IO.load_from('grid', 'coarse_area')
-        # Hack due to wrong output of grid prepare
-        self.g_mem_idx = self.IO.load_from('grid', 'gradient index')
-        g_coords = self.IO.load_from('grid', 'gradient coordinates').astype(int)
-        g_rads = self.IO.load_from('grid', 'gradient distances')
+        self.g_mem_idx = self.IO.load_from('grid', 'grad_idx')
+        g_coords = self.IO.load_from('grid', 'grad_coords')
+        g_rads = self.IO.load_from('grid', 'grad_dist')
         self.g_coords_rads = [
             [[gci, gri] for gci, gri in itertools.izip(gc, gr)] for gc, gr in itertools.izip(
                 g_coords, g_rads
@@ -138,21 +136,81 @@ class CoarseGrain(Operations):
         print('computing U and V hat')
         U_hat, V_hat = self.bar_avg_2Dvec('U', 'V')
         print('saving to file ...')
-        print(np.shape(U_hat))
-        self.IO.write_to('data', U_hat, name='U_HAT', attrs={'long_name': 'density weighted coarse zonal wind'})
-        self.IO.write_to('data', V_hat, name='V_HAT', attrs={'long_name': 'density weighted coarse meridional wind'})
+        self.IO.write_to('data', U_hat, name='U_HAT',
+                         attrs={
+                             'long_name': 'density weighted coarse zonal wind',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
+        self.IO.write_to('data', V_hat, name='V_HAT',
+                         attrs={
+                             'long_name': 'density weighted coarse meridional wind',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
         print('computing U and V grad')
         UV_gradients = self.xy_hat_gradients(U_hat, V_hat)
+        self.IO.write_to('data', UV_gradients[:,0,0,:,:], name='DUX',
+                         attrs={
+                             'long_name': 'density weighted coarse meridional wind',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
+        self.IO.write_to('data',  UV_gradients[:,0,1,:,:], name='DVX',
+                         attrs={
+                             'long_name': 'density weighted coarse meridional wind',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
+        self.IO.write_to('data',  UV_gradients[:,1,0,:,:], name='DUY',
+                         attrs={
+                             'long_name': 'density weighted coarse meridional wind',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
+        self.IO.write_to('data',  UV_gradients[:,1,1,:,:], name='DVY',
+                         attrs={
+                             'long_name': 'density weighted coarse meridional wind',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
+
         rhouv_flucts = self.rhoxy_averages('U', 'V', U_hat, V_hat)
         del U_hat, V_hat
         turbfric = self.turbulent_friction(rhouv_flucts, UV_gradients)
         del rhouv_flucts
         print('saving to file ...')
-        self.IO.write_to('data', turbfric, name='T_FRIC', attrs={'long_name' : 'turbulent_friction'})
+        self.IO.write_to('data', turbfric, name='T_FRIC',
+                         attrs={
+                             'long_name' : 'turbulent_friction',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
         print('computing K...')
         K = self.friction_coefficient(UV_gradients, turbfric)
         print('saving to file ...')
-        self.IO.write_to('data', K, name='K_TURB', attrs={'long_name' : 'turbulent dissipation coefficient'})
+        self.IO.write_to('data', K, name='K_TURB',
+                         attrs={
+                             'long_name' : 'turbulent dissipation coefficiet',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured'
+                             }
+                         )
 
     def testing(self):
         xname = 'U'
@@ -161,18 +219,13 @@ class CoarseGrain(Operations):
         Y = self.IO.load_from('data', yname)
         rhoxy = self.rhoxy_averages('U', 'V', X, Y)
 
-
-
-
 if __name__ == '__main__':
-    path = '/home1/kd031/projects/icon/experiments/BCWfine'
+    path = '/home1/kd031/projects/icon/experiments/BCWcold'
     gridfile = r'iconR\dB\d{2}-grid_refined_3.nc'
-    datafile = r'time_slice_0.nc'
+    datafile = r'BCWcold_slice.nc'
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
     cg = CoarseGrain(path, gridfile, datafile)
-    print cg._ready
-    #cg.testing()
     cg.execute()
 
 
