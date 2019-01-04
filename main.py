@@ -139,7 +139,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', U_hat, name='U_HAT',
                          attrs={
                              'long_name': 'density weighted coarse zonal wind',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -147,7 +147,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', V_hat, name='V_HAT',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -157,7 +157,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', UV_gradients[:,0,0,:,:], name='DUX',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -165,7 +165,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data',  UV_gradients[:,0,1,:,:], name='DVX',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -173,7 +173,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data',  UV_gradients[:,1,0,:,:], name='DUY',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -181,7 +181,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data',  UV_gradients[:,1,1,:,:], name='DVY',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -195,7 +195,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', turbfric, name='T_FRIC',
                          attrs={
                              'long_name' : 'turbulent_friction',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -206,7 +206,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', K, name='K_TURB',
                          attrs={
                              'long_name' : 'turbulent dissipation coefficiet',
-                             'coordinates': 'clat clon',
+                             'coordinates': 'vlat vlon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
