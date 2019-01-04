@@ -107,6 +107,7 @@ class TestMath(unittest.TestCase):
         )
     def test_central_diff(self):
         self.assertAlmostEqual(1, math.central_diff(4,2,1))
+        self.assertAlmostEqual(2, math.central_diff(8,2,1))
 
     def test_scalar_flucts(self):
         test_array = [[np.ones((3,3)), 10, [3,3]] for i in range(test_len)]
