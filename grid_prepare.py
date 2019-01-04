@@ -183,9 +183,10 @@ def define_hex_area(cell_neighbour_idx, num_hex, num_edges, cell_index, a_nei_id
 def coarse_area(cell_area, area_member_idx, coarse_area):
     ca = []
 
-    for ami in itertools.izip(area_member_idx):
+    for ami in area_member_idx:
         areas = cell_area[np.where(ami > -1)[0]]
         ca.append(np.sum(areas))
+
     coarse_area[:] = ca
 
 @TimeThis
@@ -205,7 +206,7 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
         [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
         '''
 
-    times_rad = 2.1
+    times_rad = 3
     ncells = len(lon)
     start = 0
 
@@ -250,6 +251,11 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
 
             check = list(itertools.compress(range(ncells), test))
 
+            try:
+                check.remove(idx)
+            except:
+                pass
+
             cntr = 0
             for k, kidx in enumerate(check):
                 check_r = math.arc_len(
@@ -261,7 +267,7 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
                     grad_dist[i, j, cntr] = check_r
                     cntr += 1
             if cntr == 0:
-                sys.exit('no one found \n {} \n {}'.format(grad_coordi, bounds))
+                sys.exit('no one found \n {} \n\n {} \n\n {}'.format(grad_coordi[j], bounds, zip(lon[check],lat[check])))
 
 
 def gradient_coordinates(lon, lat, d):
@@ -276,17 +282,8 @@ def gradient_coordinates(lon, lat, d):
         returns:
             coords [i, j]: i {0..3}: E,W,N,S, j {0,1}: lon, lat
     '''
-
-    lat_min = lat - d
-    lat_max = lat + d
-
-    if lat_max > np.pi/2:
-        # NP in query circle:
-        lat_max = np.pi/2
-    elif lat_min < -np.pi/2:
-        # SP in query circle:
-        lat_min = -np.pi/2
-
+    # Set longitudes first
+    # --------------------
     d_lon = d / np.cos(lat)
     lon_min = lon - d_lon
     lon_max = lon + d_lon
@@ -307,17 +304,40 @@ def gradient_coordinates(lon, lat, d):
         # lon_min > 180 (180E) => project onto W
         lon_max = lon_max - 2* np.pi
 
+    # Set latitudes:
+    # -------------------
+    lat_min = lat - d
+    lat_max = lat + d
+    # In case of pole, the longitude has to be shifted over to the
+    # opposite side of globe.
+    if lon <= 0 :
+        lon_n = lon + 2 * np.pi
+    elif lon > 0 :
+        lon_n = lon - 2 * np.pi
+    else:
+        pass
+
     coords = np.array([
         np.array([lon_max, lat]), #East Point
         np.array([lon_min, lat]), #West Point
         np.array([lon, lat_max]), #North Point
         np.array([lon, lat_min])  #South Point
     ])
+
+    if lat_max > np.pi/2 :
+        # NP in query circle:
+        coords[3,:] = np.array([lon_n, lat_max - np.pi/2])
+
+    elif lat_min < -np.pi/2 :
+        # SP in query circle:
+        coords[4,:] = np.array([lon_n, lat_min + np.pi/2])
+    else:
+        pass
+
     return coords
 
 def max_min_bounds(lon, lat, r):
-    '''
-        computes the maximum and minimum lat and lon
+    '''computes the maximum and minimum lat and lon
         values on a circle on a spere.
         input:
             lon, lat - coordinates of center point
@@ -326,21 +346,22 @@ def max_min_bounds(lon, lat, r):
             bounds: array [i, j, k]
                 i = {0, 1} for special cases around tho poles
                 j = {0, 1} containig (W, S)-min and (E, N)-max
-                k = {0, 1} [lon, lat]
-    '''
+                k = {0, 1} [lon, lat]'''
 
     ispole = False
     lat_min = lat - r
     lat_max = lat + r
     bounds = np.empty([2, 2, 2])
     bounds.fill(-4)
-    if lat_max > np.pi/2:
+    if lat_max > np.pi/2 :
         #NP
         lat_max = np.pi/2
+        lat_min = lat_max - r
 
-    elif lat_min < -np.pi/2:
+    elif lat_min < -np.pi/2 :
         #SP
         lat_min < -np.pi/2
+        lat_max = lat_min + r
 
     # Give standard values
     bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, lat_max]]
@@ -424,5 +445,3 @@ if __name__ == '__main__':
     gmp.set_num_procs(12)
     GP = Grid_Preparator(args.path_to_file[0], new_name, args.num_rings[0])
     GP.execute()
-
-

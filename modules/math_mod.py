@@ -174,6 +174,9 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
             neighs_x.append(helper[0])
             neighs_y.append(helper[1])
         d = 2 * radius(c_area) * r_e
+        print('neighs_x: {} \n \n {}'.format(neighs_x[0][0,0], neighs_x[1][0,0]))
+        print('neighs_y: {}'.format(neighs_y))
+        print('d: {}'.format(d))
         for j in range(2):
             # dx 0: E values - W values,
             # dy 1: N values - S values
@@ -189,6 +192,7 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
                 neighs_y[(2*j)+1],
                 d
             )
+        break
 
 #@TimeThis
 def dist_avg_vec(x_values, y_values, grid_nfo):
@@ -214,10 +218,13 @@ def dist_avg_vec(x_values, y_values, grid_nfo):
 # TODO: scrub data structures out of there.
 #@TimeThis
 def dist_avg_scalar(x_values, grid_nfo):
-    '''computes the distance averaged value of a set of scalar values'''
+    '''computes the distance averaged value of a set of scalar values
+        Input: x_values[]
+
+    '''
     factor = 0
     # multiply cell_area and distance from center to recieve weight
-    weights = [x_val[0]* x_rad for x_val, x_rad in itertools.izip(x_values, grid_nfo[1])]
+    weights = [x_val[1]* x_rad for x_val, x_rad in itertools.izip(x_values, grid_nfo[1])]
     factor = np.sum(weights)
 
     average = 0
@@ -252,15 +259,15 @@ def get_polar(lon, lat):
     # move pole to the opposite side of earth.
     if 0 < lon <= np.pi:
         plon = lon - np.pi
-    elif -np.pi <= lon < 0:
+    elif -np.pi <= lon < 0 :
         plon = lon + np.pi
     else:
         plon = np.pi
 
-    if 0 <= lat <= np.pi/2:
+    if 0 <= lat <= np.pi/2 :
         plat = np.pi/2 - lat
     # if point is 'below' the equator, keep plon = lon (90deree angle)
-    elif -np.pi/2 <= lat < 0:
+    elif -np.pi/2 <= lat < 0 :
         plat = np.pi/2 + lat
         plon = lon
 
