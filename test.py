@@ -2,6 +2,7 @@
 # coding=utf-8
 import unittest
 import numpy as np
+from math import radians
 import modules.math_mod as math
 from decorators.paralleldecorators import gmp, shared_np_array
 
@@ -19,7 +20,6 @@ return_array[:] = ret[:]
 print(type(return_array))
 
 class TestMath(unittest.TestCase):
-
     def test_avg_bar(self):
         self.assertTrue((np.ones((3,3)) ==  math.avg_bar(test_array, total_area)).all())
 
@@ -107,7 +107,7 @@ class TestMath(unittest.TestCase):
         )
     def test_central_diff(self):
         self.assertAlmostEqual(1, math.central_diff(4,2,1))
-        self.assertAlmostEqual(2, math.central_diff(8,2,1))
+        self.assertAlmostEqual(2, math.central_diff(8,4,1))
 
     def test_scalar_flucts(self):
         test_array = [[np.ones((3,3)), 10, [3,3]] for i in range(test_len)]
@@ -140,6 +140,10 @@ class TestMath(unittest.TestCase):
             )
         )
 
+    def test_arc_len(self):
+        p_x = [radians(-1.7297222222222221), radians(53.32055555555556)]
+        p_y = [radians(-1.6997222222222223), radians(53.31861111111111)]
+        self.assertAlmostEqual(0.0003146080424221651, math.arc_len(p_x, p_y))
 
 if __name__ == '__main__':
     unittest.main()
