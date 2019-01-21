@@ -68,8 +68,8 @@ class Operations(object):
         )
         return rhoxy
 
-    def turbulent_friction(self, rhoxy, gradxy):
-        print('computing the turbulent friction values ...')
+    def turbulent_shear_prod(self, rhoxy, gradxy):
+        print('computing the turbulent shear production values ...')
         varshape = list(np.shape(rhoxy))
         varshape.pop(1)
         varshape.pop(1)
@@ -139,7 +139,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', U_hat, name='U_HAT',
                          attrs={
                              'long_name': 'density weighted coarse zonal wind',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -147,7 +147,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', V_hat, name='V_HAT',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -157,7 +157,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', UV_gradients[:,0,0,:,:], name='DUX',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -165,7 +165,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data',  UV_gradients[:,0,1,:,:], name='DVX',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -173,7 +173,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data',  UV_gradients[:,1,0,:,:], name='DUY',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -181,7 +181,7 @@ class CoarseGrain(Operations):
         self.IO.write_to('data',  UV_gradients[:,1,1,:,:], name='DVY',
                          attrs={
                              'long_name': 'density weighted coarse meridional wind',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -189,13 +189,14 @@ class CoarseGrain(Operations):
 
         rhouv_flucts = self.rhoxy_averages('U', 'V', U_hat, V_hat)
         del U_hat, V_hat
-        turbfric = self.turbulent_friction(rhouv_flucts, UV_gradients)
+        print('computing turbulent friction...')
+        turbfric = self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
         del rhouv_flucts
         print('saving to file ...')
         self.IO.write_to('data', turbfric, name='T_FRIC',
                          attrs={
                              'long_name' : 'turbulent_friction',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
                              }
@@ -206,9 +207,33 @@ class CoarseGrain(Operations):
         self.IO.write_to('data', K, name='K_TURB',
                          attrs={
                              'long_name' : 'turbulent dissipation coefficiet',
-                             'coordinates': 'vlat vlon',
+                             'coordinates': 'clat clon',
                              '_FillValue' : float('nan'),
                              'grid_type' : 'unstructured'
+                             }
+                         )
+        del UV_gradients
+        turberich = phys.turb_fric_erich(turbfric)
+        self.IO.write_to('data', turberich, name='T_ERICH',
+                         attrs={
+                             'long_name' : 'turbulent_shear_erich',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured',
+                             'units' : 'K/d'
+                             }
+                         )
+        del turberich
+    def convert_to_erich(self):
+        t_fric = self.IO.load_from('data', 'T_FRIC')
+        turberich = phys.turb_fric_erich(t_fric)
+        self.IO.write_to('data', turberich, name='T_ERICH',
+                         attrs={
+                             'long_name' : 'turbulent_shear_erich',
+                             'coordinates': 'clat clon',
+                             '_FillValue' : float('nan'),
+                             'grid_type' : 'unstructured',
+                             'units' : 'K/d'
                              }
                          )
 
@@ -220,12 +245,13 @@ class CoarseGrain(Operations):
         rhoxy = self.rhoxy_averages('U', 'V', X, Y)
 
 if __name__ == '__main__':
-    path = '/home1/kd031/projects/icon/experiments/BCWcold'
+    path = '/home1/kd031/projects/icon/experiments/BCWnew'
     gridfile = r'iconR\dB\d{2}-grid_refined_3.nc'
-    datafile = r'BCWcold_slice.nc'
+    datafile = r'BCWnew_slice.nc'
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
     cg = CoarseGrain(path, gridfile, datafile)
+   # cg.convert_to_erich()
     cg.execute()
 
 
