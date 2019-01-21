@@ -82,11 +82,26 @@ class IOcontroller(object):
 
         return data
 
-    def write_to(
-        self, where, data, filenum=0,
-        name='data', dtype = 'f8', dims = ('time', 'lev', 'ncells',),
-        attrs = {'long_name': 'no name'}
-    ):
+    def isin(self, where, what, filenum = 0):
+        if where == 'data':
+            xfile = self.datafiles[filenum]
+        elif where == 'grid':
+            xfile = self.gridfile[0]
+        else:
+            sys.exit('invalid file: {}'.format(xfile))
+
+        with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
+            var_keys = [str(xkey) for xkey in xdata.variables.keys()]
+            if var in var_keys:
+                out=True
+            else:
+                out=False
+        return out
+
+    def write_to(self, where, data, filenum=0,
+        name='data', dtype = 'f8', dims = ('time', 'lev', 'cell2',),
+        attrs = {'long_name': 'no name'}):
+
         if where == 'data':
             xfile = self.datafiles[filenum]
             # switch rows, so ncell is back in the back
