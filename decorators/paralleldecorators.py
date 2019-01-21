@@ -27,7 +27,6 @@ class ParallelNpArray(object):
         def _parall(*args, **kwargs):
             if self._mp.switch:
                 slices = self.prepare_slices(args[0], self._mp)
-                result_queue = []
                 processes = []
                 if hasattr(_parall, 'needs'):
                     args_sliced = []
@@ -70,7 +69,7 @@ class ParallelNpArray(object):
     def prepare_slices(x_list, mp):
         """returns appropriate slices for worker"""
         l_shape = np.shape(x_list)
-        if mp.num_procs > 1:
+        if mp.num_procs > 1 :
             len_slice = l_shape[0] // (mp.num_procs - 1)
         else:
             len_slice = l_shape[0]
