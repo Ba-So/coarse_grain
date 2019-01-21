@@ -77,7 +77,7 @@ class Grid_Preparator(object):
         ncells = self.xfile.get_dimsize_from('grid', 'vertex')
         co_ar = self.create_array([ncells])
         co_ar[:] = np.array([0.0 for i in range(0, ncells)])
-        cell_area = self.xfile.load_from('grid', 'cell_area')
+        cell_area = self.xfile.load_from('grid', 'dual_area_p')
         a_nei_idx = self.xfile.load_from('grid', 'area_member_idx')
 
         coarse_area(cell_area, a_nei_idx, co_ar)
@@ -86,14 +86,14 @@ class Grid_Preparator(object):
 
     def compute_gradient_nfo(self):
         ncells = self.xfile.get_dimsize_from('grid', 'vertex')
-        cell_area = self.xfile.load_from('grid', 'cell_area')
+        cell_area = self.xfile.load_from('grid', 'dual_area_p')
         coarse_area = self.xfile.load_from('grid', 'coarse_area')
 
         lon = self.xfile.load_from('grid', 'vlon')
         lat = self.xfile.load_from('grid', 'vlat')
 
         times_rad = 2
-        max_members = 1 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
+        max_members = 2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
         grad_coords = self.create_array([ncells, 4, 2])
         grad_index = self.create_array([ncells, 4, max_members], dtype='int')
         grad_index[:] = -1
@@ -206,7 +206,7 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
         [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
         '''
 
-    times_rad = 3
+    times_rad = 2
     ncells = len(lon)
     start = 0
 
@@ -219,7 +219,7 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
         grad_coords[i, :] = grad_coordi
 
         for j in range(4): # in range(E,W,N,S)
-            bounds = max_min_bounds(
+            bounds, ispole = max_min_bounds(
                 grad_coordi[j, 0], grad_coordi[j, 1], check_rad
             )
 
@@ -257,17 +257,33 @@ def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords
                 pass
 
             cntr = 0
+            check_rads = []
             for k, kidx in enumerate(check):
-                check_r = math.arc_len(
-                    grad_coordi[j, :],
-                    [lon[kidx], lat[kidx]]
-                )
+                if ispole:
+                    check_r = math.arc_len(
+                        grad_coordi[j, :],
+                        [lon[kidx], lat[kidx]]
+                    )
+                else:
+                    check_r = math.arc_len(
+                        grad_coordi[j, :],
+                        [lon[kidx], lat[kidx]]
+                    )
+
+                check_rads.append(check_r)
                 if check_r <= check_rad:
                     grad_idx[i, j, cntr] = kidx
                     grad_dist[i, j, cntr] = check_r
                     cntr += 1
-            if cntr == 0:
-                sys.exit('no one found \n {} \n\n {} \n\n {}'.format(grad_coordi[j], bounds, zip(lon[check],lat[check])))
+            if cntr == 0 :
+                sys.exit(
+                    '''no one found \n
+                    coordinates:{}{} \n\n
+                    bounds: {} \n\n
+                    possible members: {} \n\n
+                    distance: {} \n\n
+                    check_rads: {}'''.format(j, grad_coordi[j], bounds, zip(lon[check],lat[check]), check_rad, check_rads))
+
 
 
 def gradient_coordinates(lon, lat, d):
@@ -326,11 +342,11 @@ def gradient_coordinates(lon, lat, d):
 
     if lat_max > np.pi/2 :
         # NP in query circle:
-        coords[3,:] = np.array([lon_n, lat_max - np.pi/2])
+        coords[2,:] = np.array([lon_n, lat_max - np.pi/2])
 
     elif lat_min < -np.pi/2 :
         # SP in query circle:
-        coords[4,:] = np.array([lon_n, lat_min + np.pi/2])
+        coords[3,:] = np.array([lon_n, lat_min + np.pi/2])
     else:
         pass
 
@@ -354,13 +370,12 @@ def max_min_bounds(lon, lat, r):
     bounds = np.empty([2, 2, 2])
     bounds.fill(-4)
     if lat_max > np.pi/2 :
-        #NP
         lat_max = np.pi/2
         lat_min = lat_max - r
 
     elif lat_min < -np.pi/2 :
         #SP
-        lat_min < -np.pi/2
+        lat_min = -np.pi/2
         lat_max = lat_min + r
 
     # Give standard values
@@ -369,14 +384,13 @@ def max_min_bounds(lon, lat, r):
     # computing tangent longditudes to circle on sphere
     # compare Bronstein
     np.seterr(all='raise')
-    Flag = False
     try:
         # breaks down close at poles.
         lat_t = np.arcsin(np.sin(lat) / np.cos(r))
     except:
-        Flag = True
+        ispole = True
     # computing delta longditude
-    if not Flag:
+    if not ispole:
         try:
             d_lon = np.arccos(
                 (np.cos(r) - np.sin(lat_t) * np.sin(lat))
@@ -407,7 +421,7 @@ def max_min_bounds(lon, lat, r):
             bounds[0, 0, 0] = lon_min # to be min value
             bounds[0, 1, 0] = lon_max # to be max value
 
-    return bounds
+    return bounds, ispole
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Prepare ICON grid-files for Coarse-Graining.')
