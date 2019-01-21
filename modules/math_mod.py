@@ -3,6 +3,7 @@
 import numpy as np
 import itertools
 import sys
+import pprint
 from decorators.debugdecorators import TimeThis, PrintArgs
 from decorators.paralleldecorators import gmp, ParallelNpArray
 from decorators.functiondecorators import requires
@@ -33,7 +34,7 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
             idx_set = idx_set[np.where(idx_set > -1)[0]]
             reti[:,] = avg_bar([data[j] for j in idx_set], c_a)
         except:
-            sys.exit('Mist idx_set:{}, j:{}'.format(idx_set, j))
+            sys.exit('Mist idx_set:{}'.format(idx_set))
 
 #--------------------
 #@TimeThis
@@ -174,9 +175,11 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
             neighs_x.append(helper[0])
             neighs_y.append(helper[1])
         d = 2 * radius(c_area) * r_e
-        print('neighs_x: {} \n \n {}'.format(neighs_x[0][0,0], neighs_x[1][0,0]))
-        print('neighs_y: {}'.format(neighs_y))
-        print('d: {}'.format(d))
+      # pp = pprint.PrettyPrinter(indent=4)
+      # pp.print(helper[0][0], helper[1][0])
+      # print('neighs_x: {} \n \n {}'.format(neighs_x[0][0,0], neighs_x[1][0,0]))
+      # print('neighs_y: {}'.format(neighs_y))
+      # print('d: {}'.format(d))
         for j in range(2):
             # dx 0: E values - W values,
             # dy 1: N values - S values
@@ -192,7 +195,6 @@ def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
                 neighs_y[(2*j)+1],
                 d
             )
-        break
 
 #@TimeThis
 def dist_avg_vec(x_values, y_values, grid_nfo):
@@ -333,18 +335,15 @@ def num_hex_from_rings(num_rings):
     return num_hex
 
 def arc_len(p_x, p_y):
-    '''
-    computes the length of a geodesic arc on a sphere (in radians)
+    '''computes the length of a geodesic arc on a sphere (in radians)
+    using the haversine formula. Is precise for distances smaller than
+    half the circumference of earth.
     p_x : lon, lat
     p_y : lon, lat
-    out r in radians
-    '''
-    try:
-        r = np.arccos(
-            np.sin(p_x[1]) * np.sin(p_y[1])
-            + np.cos(p_x[1]) * np.cos(p_y[1]) * np.cos(p_y[0] - p_x[0])
-        )
-    except:
-        sys.exit('mist: p_x1{}, p_x2{}, p_y1{}, p_y2{}'.format(p_x[0], p_x[1], p_y[0], p_y[1]))
-    return r
+    out d in radians'''
+    dlon = p_y[0] - p_x[0]
+    dlat = p_y[1] - p_x[1]
+    hav = np.sin(dlat / 2)**2 + np.cos(p_x[1]) * np.cos(p_y[1]) * np.sin(dlon / 2)**2
+    d = 2 * np.arcsin(np.sqrt(hav))
+    return d
 
