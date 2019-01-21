@@ -53,6 +53,16 @@ def turb_fric(rhoxy, gradxy, tfric):
     )
 
 @TimeThis
+def turb_fric_erich(tfric):
+    '''computes not the entropy but enthalpy production through enthalpy'''
+    rd = 287.04
+    c_p = 1004.64
+    c_v = c_p - rd
+    s_to_d = 60*60*24 # to convert from 1/s to 1/d
+    return tfric * s_to_d / c_p
+
+
+@TimeThis
 @requires({
     'full' : [],
     'slice': ['gradxy', 'rhobar', 'tfric', 'imagk']
