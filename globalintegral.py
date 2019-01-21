@@ -1,66 +1,32 @@
 #!/usr/bin/env python
 # coding=utf-8
-import custom_io as cio
-import sampling as smp
 import numpy as np
+import os.path as path
+import modules.cio as cio
 
-def global_integral(data):
+
+def global_integral(d_area, d_ZF3, data):
     r_e = 6.3781e6
     int_sum = 0
-    for i,area in enumerate(data['area']):
+    for i,area in enumerate(d_area):
         prev_height = 0
-        for j,height in enumerate(data['ZF3'][:,i]):
+        for j,height in enumerate(d_ZF3[:,i]):
             dz = height - prev_height
-            if dz < 0:
+            if dz < 0 :
                 print(dz)
             prev_height = height
-            dA = area * (height + r_e)**2 / (data['ZF3'][0,i] + r_e)**2
-            int_sum += data['value'][i,j] * dA * dz
+            dA = area * (height + r_e)**2 / (d_ZF3[0,i] + r_e)**2
+            int_sum += data[i,j] * dA * dz
     int_sum = int_sum/(4*np.pi*r_e**2)
     return int_sum
 
-def discretize_data(f_path, c_path):
-    grid_fine, grid_coarse = smp.load_grids(f_path, c_path)
-    return smp.find_closest(grid_fine, grid_coarse)
-
 if __name__=='__main__':
-    dir_path = u'/home1/kd031/projects/icon/grids/'
-    f_path = dir_path + 'iconR2B07-grid_spr0.95.nc'
-    c_path = dir_path + 'iconR2B04-grid_spr0.95.nc'
-    print('finding coarse, discrete indices')
-    #coarse_indices = discretize_data(f_path,c_path)
-    coarse_indices = range(1000)
-    print('loading data sets')
-
-    grid = {
-        'path' : '~/projects/icon/experiments/BCWcold/iconR2B07-grid_refined_4.nc'
-    }
-    geo = {
-        'path' : '~/projects/icon/experiments/BCWcold/BCWcold_R2B07_slice_onestep.nc'
-    }
-    data = {
-        'path' : '~/projects/icon/experiments/BCWcold/BCWcold_R2B07_slice_refined_4.nc'
-    }
-
-    dataset = {}
-    geo['data'] = cio.read_netcdfs(geo['path'])
-    dataset['ZF3'] = geo['data']['ZF3'].values
-    del geo
-    dataset['ZF3'] = dataset['ZF3'][::-1,:]
-    grid['data'] = cio.read_netcdfs(grid['path'])
-    dataset['area'] = grid['data']['coarse_area'].values[coarse_indices]
-    del grid
-    data['data'] = cio.read_netcdfs(data['path'])
-    print(np.shape(data['data']['t_diss'].values))
-    dataset['value'] = data['data']['t_diss'].values[2,:,coarse_indices]
-    del data
-    print(np.shape(dataset['value']))
-    dataset['value'] = dataset['value'][:, ::-1]
-    print('integrating')
-    print(global_integral(dataset))
-
-
-
-
-
+    dir_path = u'/home1/kd031/projects/icon/experiments/BCWcold'
+    f_path = 'iconR2B07-grid_refined_3.nc'
+    g_path = 'BCWcold_slice.nc'
+    IO = cio.IOcontroller(dir_path, f_path, g_path)
+    d_area = IO.load_from('grid', 'coarse_area')
+    d_ZF3 = IO.load_from('data', 'ZF3')
+    data = IO.load_from('data', 'T_ERICH')
+    print(global_integral(d_area, d_ZF3, data))
 
