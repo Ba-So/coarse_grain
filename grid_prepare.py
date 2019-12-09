@@ -12,6 +12,7 @@ from decorators.debugdecorators import TimeThis, PrintArgs, PrintReturn
 from decorators.functiondecorators import requires
 import modules.cio as cio
 import modules.math_mod as math
+import modules.new_grad_mod as grad
 
 class Grid_Preparator(object):
     def __init__(self, path, gridn, num_rings):
@@ -91,20 +92,24 @@ class Grid_Preparator(object):
 
         lon = self.xfile.load_from('grid', 'vlon')
         lat = self.xfile.load_from('grid', 'vlat')
-
+        coords = [[loni, lati] for loni, lati in itertools.izip(lon, lat)]
         times_rad = 2
         max_members = 2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
         grad_coords = self.create_array([ncells, 4, 2])
-        grad_index = self.create_array([ncells, 4, max_members], dtype='int')
-        grad_index[:] = -1
-        grad_dist = self.create_array([ncells, 4, max_members])
-        grad_dist[:] = -1
+        grad_dist = self.create_array([ncells])
+        grad_dist[:] = 0.0
+        int_index = self.create_array([ncells, 4, max_members], dtype='int')
+        int_index[:] = -1
+        int_dist = self.create_array([ncells, 4, max_members, 2])
+        int_dist[:] = 10000.0
         cell_idx = np.arange(ncells)
 
-        compute_gradient_nfo(
-            lon, lat, coarse_area, cell_area, cell_idx, #input
-            grad_coords, grad_index, grad_dist #output
+        grad.compute_gradient_nfo(
+            coords, coarse_area, cell_area, cell_idx, #input
+            grad_coords, grad_dist, int_index, int_dist #output
         )
+        print(np.min(int_dist))
+        print(np.max(int_dist))
 
         self.xfile.new_dimension('grid', 'gradnum', 4)
         self.xfile.new_dimension('grid', 'lonlat', 2)
@@ -113,18 +118,22 @@ class Grid_Preparator(object):
             dims=['gradnum', 'lonlat', 'vertex'],
             attrs={'long_name': 'gradient coordinates'}
         )
-        self.xfile.new_dimension('grid', 'maxmem', max_members)
-        self.xfile.write_to(
-            'grid', grad_index, dtype='i4', name='grad_idx',
-            dims=['gradnum', 'maxmem', 'vertex'],
-            attrs={'long_name': 'gradient indices'}
-        )
         self.xfile.write_to(
             'grid', grad_dist, name='grad_dist',
-            dims=['gradnum', 'maxmem', 'vertex'],
+            dims=['vertex'],
             attrs={'long_name': 'gradient distances'}
         )
-
+        self.xfile.new_dimension('grid', 'maxmem', max_members)
+        self.xfile.write_to(
+            'grid', int_index, dtype='i4', name='int_idx',
+            dims=['gradnum', 'maxmem', 'vertex'],
+            attrs={'long_name': 'interpolation indices'}
+        )
+        self.xfile.write_to(
+            'grid', int_dist, name='int_dist',
+            dims=['gradnum', 'maxmem', 'lonlat', 'vertex'],
+            attrs={'long_name': 'interpolation distances'}
+        )
 
     def execute(self):
         print('locating pentagons...')
@@ -133,6 +142,8 @@ class Grid_Preparator(object):
         self.compute_hex_area_members()
         print('computing coarse area...')
         self.compute_coarse_area()
+        # print('preparing local gradient computation...')
+        # self.compute_l_gradient_nfo()
         print('preparing gradient computation...')
         self.compute_gradient_nfo()
 
@@ -184,244 +195,11 @@ def coarse_area(cell_area, area_member_idx, coarse_area):
     ca = []
 
     for ami in area_member_idx:
-        areas = cell_area[np.where(ami > -1)[0]]
+        areas = cell_area[np.extract(np.greater(ami, -1), ami)]
         ca.append(np.sum(areas))
 
     coarse_area[:] = ca
 
-@TimeThis
-@requires({
-    'full' : ['lon', 'lat'],
-    'slice' : ['coarse_area', 'cell_area', 'cell_idx',
-               'grad_coords', 'grad_idx', 'grad_dist']
-})
-@ParallelNpArray(gmp)
-def compute_gradient_nfo(lon, lat, coarse_area, cell_area, cell_idx, grad_coords, grad_idx, grad_dist):
-    '''return:
-        the coordinates of E,W,N,S points for the computation of the gradients
-        [ncells, i, j] i{0..3} E,W,N,S ; j{0,1} lon, lat
-        the indices of points around those points to be distance averaged over
-        [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
-        the distance of points around those points for distance average
-        [ncells, i, j] i{0..3} E,W,N,S ; j{0..max_members}
-        '''
-
-    times_rad = 2
-    ncells = len(lon)
-    start = 0
-
-    for i, idx in enumerate(cell_idx):
-
-        d = 2 * math.radius(coarse_area[i])
-        check_rad = times_rad * math.radius(cell_area[i])
-
-        grad_coordi = gradient_coordinates(lon[idx], lat[idx], d)
-        grad_coords[i, :] = grad_coordi
-
-        for j in range(4): # in range(E,W,N,S)
-            bounds, ispole = max_min_bounds(
-                grad_coordi[j, 0], grad_coordi[j, 1], check_rad
-            )
-
-            test_lat_1 = np.all([
-                np.greater_equal(lat, bounds[0, 0, 1]),
-                np.less_equal(lat, bounds[0, 1, 1])
-            ], 0)
-
-            test_lat_2 = np.all([
-                np.greater_equal(lat, bounds[1, 0, 1]),
-                np.less_equal(lat, bounds[1, 1, 1])
-            ], 0)
-
-            test_lat = np.any([test_lat_2, test_lat_1], 0)
-
-            test_lon_1 = np.all([
-                np.greater_equal(lon, bounds[0, 0, 0]),
-                np.less_equal(lon, bounds[0, 1, 0])
-            ], 0)
-
-            test_lon_2 = np.all([
-                np.greater_equal(lon, bounds[1, 0, 0]),
-                np.less_equal(lon, bounds[1, 1, 0])
-            ], 0)
-
-            test_lon = np.any([test_lon_2, test_lon_1], 0)
-
-            test = np.all([test_lon, test_lat], 0)
-
-            check = list(itertools.compress(range(ncells), test))
-
-            try:
-                check.remove(idx)
-            except:
-                pass
-
-            cntr = 0
-            check_rads = []
-            for k, kidx in enumerate(check):
-                if ispole:
-                    check_r = math.arc_len(
-                        grad_coordi[j, :],
-                        [lon[kidx], lat[kidx]]
-                    )
-                else:
-                    check_r = math.arc_len(
-                        grad_coordi[j, :],
-                        [lon[kidx], lat[kidx]]
-                    )
-
-                check_rads.append(check_r)
-                if check_r <= check_rad:
-                    grad_idx[i, j, cntr] = kidx
-                    grad_dist[i, j, cntr] = check_r
-                    cntr += 1
-            if cntr == 0 :
-                sys.exit(
-                    '''no one found \n
-                    coordinates:{}{} \n\n
-                    bounds: {} \n\n
-                    possible members: {} \n\n
-                    distance: {} \n\n
-                    check_rads: {}'''.format(j, grad_coordi[j], bounds, zip(lon[check],lat[check]), check_rad, check_rads))
-
-
-
-def gradient_coordinates(lon, lat, d):
-    '''
-        computes the locations to the West, East and South, North
-        to be used for the computation of the gradients.
-        Values around these poits will later be Distance-Averaged onto
-        these points.
-        input:
-            lon, lat: coordinates of center point
-            d:        Distance of W,E,S,N points from center´
-        returns:
-            coords [i, j]: i {0..3}: E,W,N,S, j {0,1}: lon, lat
-    '''
-    # Set longitudes first
-    # --------------------
-    d_lon = d / np.cos(lat)
-    lon_min = lon - d_lon
-    lon_max = lon + d_lon
-
-    # project points beyond 180E/180W onto W/E
-    # make 180 unique-> project all -180 onto 180!
-    if d >= np.pi:
-        # happens in case of pole
-        lon_min = -np.pi/2
-        lon_max =  np.pi/2
-        # to have a at least somewhat
-        # meaningful definition for the poles
-        # gradients break down anyway
-    elif lon_min <= -np.pi:
-        # lon_min <= -180 (180W) => project onto E
-        lon_min = lon_min + 2 * np.pi
-    elif lon_max > np.pi:
-        # lon_min > 180 (180E) => project onto W
-        lon_max = lon_max - 2* np.pi
-
-    # Set latitudes:
-    # -------------------
-    lat_min = lat - d
-    lat_max = lat + d
-    # In case of pole, the longitude has to be shifted over to the
-    # opposite side of globe.
-    if lon <= 0 :
-        lon_n = lon + 2 * np.pi
-    elif lon > 0 :
-        lon_n = lon - 2 * np.pi
-    else:
-        pass
-
-    coords = np.array([
-        np.array([lon_max, lat]), #East Point
-        np.array([lon_min, lat]), #West Point
-        np.array([lon, lat_max]), #North Point
-        np.array([lon, lat_min])  #South Point
-    ])
-
-    if lat_max > np.pi/2 :
-        # NP in query circle:
-        coords[2,:] = np.array([lon_n, lat_max - np.pi/2])
-
-    elif lat_min < -np.pi/2 :
-        # SP in query circle:
-        coords[3,:] = np.array([lon_n, lat_min + np.pi/2])
-    else:
-        pass
-
-    return coords
-
-def max_min_bounds(lon, lat, r):
-    '''computes the maximum and minimum lat and lon
-        values on a circle on a spere.
-        input:
-            lon, lat - coordinates of center point
-            r        - radius of area to be bounded
-        output:
-            bounds: array [i, j, k]
-                i = {0, 1} for special cases around tho poles
-                j = {0, 1} containig (W, S)-min and (E, N)-max
-                k = {0, 1} [lon, lat]'''
-
-    ispole = False
-    lat_min = lat - r
-    lat_max = lat + r
-    bounds = np.empty([2, 2, 2])
-    bounds.fill(-4)
-    if lat_max > np.pi/2 :
-        lat_max = np.pi/2
-        lat_min = lat_max - r
-
-    elif lat_min < -np.pi/2 :
-        #SP
-        lat_min = -np.pi/2
-        lat_max = lat_min + r
-
-    # Give standard values
-    bounds[0, :, :] = [[-np.pi, lat_min], [np.pi, lat_max]]
-    # ----------- lons ------------
-    # computing tangent longditudes to circle on sphere
-    # compare Bronstein
-    np.seterr(all='raise')
-    try:
-        # breaks down close at poles.
-        lat_t = np.arcsin(np.sin(lat) / np.cos(r))
-    except:
-        ispole = True
-    # computing delta longditude
-    if not ispole:
-        try:
-            d_lon = np.arccos(
-                (np.cos(r) - np.sin(lat_t) * np.sin(lat))
-                /(np.cos(lat_t) * np.cos(lat))
-            )
-        except:
-            sys.exit('weird value: r{}, latt{}, lat{}'.format(r, lat_t, lat))
-        lon_min = lon - d_lon
-        lon_max = lon + d_lon
-
-        # Funky stuff in case of meridan in query
-        if lon_min < -np.pi:
-            bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 0] = lon_min + 2 * np.pi # to be min value
-            bounds[0, 1, 0] = np.pi # to be max value
-            #and
-            bounds[1, 0, 0] = - np.pi # to be min value
-            bounds[1, 1, 0] = lon_max # to be max value
-        elif lon_max > np.pi:
-            bounds[1, :, :] = bounds[0, :, :]
-            bounds[0, 0, 0] = lon_min # to be min value
-            bounds[0, 1, 0] = np.pi # to be max value
-            #and
-            bounds[1, 0, 0] = - np.pi # to be min value
-            bounds[1, 1, 0] = lon_max - 2 * np.pi # to be max value
-
-        else:
-            bounds[0, 0, 0] = lon_min # to be min value
-            bounds[0, 1, 0] = lon_max # to be max value
-
-    return bounds, ispole
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Prepare ICON grid-files for Coarse-Graining.')
@@ -457,5 +235,7 @@ if __name__ == '__main__':
     )
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(12)
+    print(new_name)
     GP = Grid_Preparator(args.path_to_file[0], new_name, args.num_rings[0])
+  #  GP.compute_l_gradient_nfo()
     GP.execute()
