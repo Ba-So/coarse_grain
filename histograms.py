@@ -2,10 +2,8 @@
 # coding=utf-8
 
 import os
-import sys
 import glob
 import numpy as np
-import xarray as xr
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -129,15 +127,36 @@ class Run(object):
         self.file = args.file
         self.IO = cio.IOcontroller(self.path, data=self.file, out=False)
         self.vars = args.vars
-    def run(self,lev=None,time=None):
+        self.lev=args.lev
+        self.time=args.time
+    def run(self):
         for var in self.vars:
             if not self.IO.isin('data', var):
                 print('{} not found in dataset'.format(var))
                 break
+            print('defining bins ...')
             self.define_bins(var)
+            print('computing histograms ...')
             self.histogram(var)
+            print('computing statistics ...')
             self.statistics(var)
+            print('plotting histograms ...')
             self.plot_histogram(var)
+            print('done')
+
+    def getlabels(self, var):
+        if var == 'T_FRIC':
+            ylabel=r'$log(P(\tilde \sigma _M$))'
+            xlabel=r'$\tilde \sigma _M\ [J/Ks\ 1/m^3]$'
+            what=r'\tilde \sigma _M'
+        elif var == 'T_HEAT':
+            ylabel=r'$log(P(\tilde \sigma _T$))'
+            xlabel=r'$\tilde \sigma _T\ [J/Ks\ 1/m^3]$'
+            what=r'\tilde \sigma _T'
+        else:
+            ylabel=r'$log(P({}))$'.format(var)
+            xlabel=r'${}$'.format(var)
+        return xlabel, ylabel, what
 
     def bin_min_max_num(self, data):
         dat_min = np.min(data)
@@ -153,7 +172,7 @@ class Run(object):
         # get max/min & total number of values, consecutively for data files
         for xfile in self.IO.datafiles:
             # load
-            data = self.IO.load(xfile, var)
+            data = self.IO.load(xfile, var, self.time, self.lev)
             int_min, int_max, dat_num = self.bin_min_max_num(data)
             del data
             # compare with prev values
@@ -164,6 +183,8 @@ class Run(object):
             self.total_num += dat_num
         # get number of bin by square-root formula
         bin_num = int(np.ceil(np.sqrt(self.total_num)))
+        if bin_num >= 100:
+            bin_num = 100
         # get binsize / step between bins.
         step = (bin_max - bin_min) / bin_num
         # define binning, numpy histograms takes individual bin bounds
@@ -175,7 +196,7 @@ class Run(object):
         total_histogram = np.zeros(len(self.bins)-1)
         # sequentially evaluate datasets
         for xfile in self.IO.datafiles:
-            data = self.IO.load(xfile, var)
+            data = self.IO.load(xfile, var, self.time, self.lev)
             # compute histogram from data using precomputed bins
             int_hist = np.histogram(data, bins=self.bins, density=False)[0]
             del data
@@ -192,7 +213,7 @@ class Run(object):
         num = 0
         mean = 0
         for xfile in self.IO.datafiles:
-            data = self.IO.load(xfile, var)
+            data = self.IO.load(xfile, var, self.time, self.lev)
             num += data.size
             mean += np.sum(data)
             del data
@@ -202,7 +223,7 @@ class Run(object):
         num = 0
         std = 0
         for xfile in self.IO.datafiles:
-            data =  self.IO.load(xfile, var)
+            data =  self.IO.load(xfile, var, self.time, self.lev)
             num += np.size(data)
             std += np.sum(np.square(np.subtract(data, mean)))
             del data
@@ -215,10 +236,12 @@ class Run(object):
 
         width = (self.bins[1] - self.bins[0])
         center = np.divide(np.add(self.bins[:-1], self.bins[1:]), 2)
+        matplotlib.rcParams.update({'font.size':20})
+        xlabel,ylabel,what = self.getlabels(var)
 
         legend_text = '\n'.join((
-            r'$\mathrm{mean}'+r'={:.2E}$'.format(self.mean, ),
-            r'$\sigma= {:.2E}$'.format(self.stdev, )))
+            r'$\bar{}={:.2E}$'.format(what, self.mean, ),
+            r'$Var({})= {:.2E}$'.format(what, self.stdev, )))
         props = {
             'boxstyle' : 'round',
             'facecolor' : 'wheat',
@@ -226,18 +249,32 @@ class Run(object):
         }
         fig, ax = plt.subplots()
         ax.text(
-            0.05, 0.95,
+            1, 0.95,
             legend_text,
             transform= ax.transAxes,
-            fontsize = 14,
+            fontsize = 16,
             verticalalignment = 'top',
-            bbox= props
+            horizontalalignment = 'right',
         )
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel(xlabel)
+        plt.axvline(x=0,color='red')
+
         plt.bar(center, self.pdf, align='center', width=width)
         plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
         plt.yscale('log')
+        plt.tight_layout()
 
         oname = var
+        if self.lev:
+            oname = oname + '_l{}'.format(self.lev)
+        else:
+            pass
+
+        if not self.time==None:
+            oname = oname + '_t{}'.format(self.time)
+        else:
+            pass
 
         plt.savefig('bilder/histogramm_{}'.format(oname),dpi=73)
         plt.show()
@@ -258,6 +295,20 @@ if __name__ == '__main__':
         help='a string specifying the name of experiment outfiles'
     )
     parser.add_argument(
+        '-l',
+        dest = 'lev',
+        default = None,
+        type = int,
+        help = 'level to be investigated',
+    )
+    parser.add_argument(
+        '-t',
+        dest = 'time',
+        default = None,
+        type = int,
+        help = 'time to be investigated',
+    )
+    parser.add_argument(
         '-v',
         dest = 'vars',
         type = str,
@@ -271,6 +322,6 @@ if __name__ == '__main__':
     print(args)
     runner = Run(args)
 #    runner.run(lev=43)
-    runner.run(lev=43, time=4)
+    runner.run()
 #    for time in range(9):
 #        runner.run(lev=43, time=time)

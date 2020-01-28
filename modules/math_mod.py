@@ -31,7 +31,7 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
         returns numpy'''
     for idx_set, c_a, reti in itertools.izip(c_mem_idx, c_area, ret):
         try:
-            idx_set = idx_set[np.where(idx_set > -1)[0]]
+            idx_set = np.extract(np.greater(idx_set, -1), idx_set)
             reti[:,] = avg_bar([data[j] for j in idx_set], c_a)
         except:
             sys.exit('Mist idx_set:{}'.format(idx_set))
@@ -44,9 +44,8 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
 })
 @ParallelNpArray(gmp)
 def bar_2Dvector(xdata, ydata, c_area, c_mem_idx, retx, rety):
-    #TODO figure out how to have a dual pipe back
     for idx_set, c_a, rxi, ryi in itertools.izip(c_mem_idx, c_area, retx, rety):
-        idx_set = idx_set[np.where(idx_set > -1)[0]]
+        idx_set = np.extract(np.greater(idx_set, -1), idx_set)
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
         plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
@@ -95,7 +94,7 @@ def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
 @ParallelNpArray(gmp)
 def hat_2Dvector(xdata, ydata, rho, rho_bar, c_area, c_mem_idx, retx, rety):
     for idx_set, r_b_i, c_a_i, rxi, ryi in itertools.izip(c_mem_idx, rho_bar, c_area, retx, rety):
-        idx_set = idx_set[np.where(idx_set > -1)[0]]
+        idx_set = np.extract(np.greater(idx_set, -1), idx_set)
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
         plon, plat = get_polar(x_set[0][2][0], x_set[0][2][1])
@@ -123,6 +122,7 @@ def avg_hat(data, rho, rho_bar, c_area):
         # add that to the sum of all
         xsum = np.add(xsum, vals)
     # divide by rho_bar(numpy) * total area(scalar) & return
+
     return np.divide(xsum, np.multiply(rho_bar, c_area))
 
 #--------------------
@@ -143,72 +143,20 @@ def scalar_flucts(xdata, xavgdata):
     # maintain data structures
     return [[np.subtract(xavgdata, xdat[0]), xdat[1], xdat[2]] for xdat in xdata]
 
-#--------------------
-# TODO: scrub data structures out of there.
-@TimeThis
-@requires({
-    'full' : ['x', 'y'],
-    'slice' : ['grad_mem_idx', 'grad_coords_rads', 'coarse_area', 'gradient']
-})
-@ParallelNpArray(gmp)
-def xy_2D_gradient(x, y, grad_mem_idx, grad_coords_rads, coarse_area, gradient):
-    """computes the gradient of velocity components in u,v using
-    the information in gradient_nfo
-        u, v are of shape [[data, cell_area, [lon, lat]], ...]
-        return: gradient ... manage this somehow
-
-    """
-    r_e = 6.37111*10**6
-
-    for g_idx, g_coordrad, c_area, grad in itertools.izip(grad_mem_idx, grad_coords_rads, coarse_area, gradient):
-        neighs_x = []
-        neighs_y = []
-        for j in range(4): #E, W, N, S contributors
-            g_idxj = g_idx[j, np.where(g_idx[j] > -1)[0]]
-            x_set = [x[k] for k in g_idxj]
-            y_set = [y[k] for k in g_idxj]
-            helper = dist_avg_vec(
-                x_set,
-                y_set,
-                g_coordrad[j]
-            )
-            neighs_x.append(helper[0])
-            neighs_y.append(helper[1])
-        d = 2 * radius(c_area) * r_e
-      # pp = pprint.PrettyPrinter(indent=4)
-      # pp.print(helper[0][0], helper[1][0])
-      # print('neighs_x: {} \n \n {}'.format(neighs_x[0][0,0], neighs_x[1][0,0]))
-      # print('neighs_y: {}'.format(neighs_y))
-      # print('d: {}'.format(d))
-        for j in range(2):
-            # dx 0: E values - W values,
-            # dy 1: N values - S values
-            # x component of vector
-            grad[j, 0, :,] = central_diff(
-                neighs_x[(2*j)],
-                neighs_x[(2*j)+1],
-                d
-            )
-            # y component of vector
-            grad[j, 1, :,] = central_diff(
-                neighs_y[(2*j)],
-                neighs_y[(2*j)+1],
-                d
-            )
-
 #@TimeThis
 def dist_avg_vec(x_values, y_values, grid_nfo):
     '''
     does distance weighted average of values within a circular area on a sphere.
     needs:  coordinates of center, indices of area members,
-            distances of members from center,'''
+            distances of members from center,
+    '''
     #shift lat lon grid to a local pole.
     plon, plat = get_polar(grid_nfo[0][0], grid_nfo[0][1])
     x_vec, y_vec = rotate_multiple_to_local(
         plon,
         plat,
         x_values,
-        y_values,
+        y_values
     )
     #turn back to global is unneccesary
     x_vec = dist_avg_scalar(x_vec, grid_nfo)
@@ -216,6 +164,25 @@ def dist_avg_vec(x_values, y_values, grid_nfo):
 
     return x_vec, y_vec
 
+def lst_sq_intp_vec(x_values, y_values, c_coord, mem_dist):
+    ''' Prepares least squares interpolation of vectors.
+        needs: coordinates of center, indices of area members,
+               coordinates of members
+     '''
+    plon, plat = get_polar(c_coord[0], c_coord[1])
+    x_vec = x_values
+    y_vec = y_values
+    x_vec, y_vec = rotate_multiple_to_local(
+        plon,
+        plat,
+        x_values,
+        y_values
+    )
+    #turn back to global is unneccesary
+    x_vec = lst_sq_intp(x_vec, c_coord, mem_dist)
+    y_vec = lst_sq_intp(y_vec, c_coord, mem_dist)
+
+    return x_vec, y_vec
 
 # TODO: scrub data structures out of there.
 #@TimeThis
@@ -242,10 +209,63 @@ def dist_avg_scalar(x_values, grid_nfo):
         sys.exit('tjoar: {}'.format(average))
     return retval
 
+def lst_sq_intp(x_values, c_coord, distances):
+    ''' improved method to compute the interpolated value at a specific point
+        least squares interpolation
+        onto point on sphere
+        of values within a circle around that point.
+        Using Taylor expansion: f_i = f_p + df_i/dx|p (xi-xp) + df_i/dy|p(yi-yp)
+        and least squares A x = y (y={f_i}, A={1, (xi-xp), (yi-yp)}
+        for yi-yp we use the fact that even with shifted poles,
+        the meridians remain great circles on the sphere.
+        for xi-xp we use the formulae for right-angled triangles
+        on a sphere and distance d between c and i,
+        yielding the great-arc distance between i and c in x.
+        (which would otherwise be on small circles)
+    '''
+    # define dimensions of Problem
+    m = len(x_values)
+    n = 3
+    # define A matrix
+    A = np.zeros((m,n))
+    lon_c, lat_c = c_coord
+    for i in range(m):
+        dx_i, dy_i = distances[i]
+        A[i,:] = [1, dx_i, dy_i]
+    # define b vector
+
+    ntime = np.shape(x_values[0][0])[0]
+    u = np.zeros(np.shape(x_values[0][0]))
+    dxu = np.zeros(np.shape(x_values[0][0]))
+    dyu = np.zeros(np.shape(x_values[0][0]))
+    for i in range(ntime):
+        b = np.array([x_val[0][i,:] for x_val in x_values])
+        u[i,:], dxu[i,:], dyu[i,:] = np.linalg.lstsq(A,b,rcond=None)[0]
+    return [u, x_values[0][1], [lon_c, lat_c]]
+
+def triangle_b_from_ac(a,c):
+    ''' requires c in radians returns b in m '''
+    np.seterr(all='raise')
+    r_e = 6.37111*10**6
+    z = np.cos(c) / np.cos(a)
+    try:
+        b = np.arccos(z)
+    except:
+        print(c)
+        print(a)
+        print(z)
+        b = 0
+
+    return b
+
 def central_diff(xr, xl, d):
     ''' little routine, which computes the
     central difference between two values with distance 2 * d'''
-    return np.divide(np.subtract(xr, xl), 2 * d)
+    diff = np.zeros(np.shape(xr))
+    epsilon = 500
+    if d > 0 + epsilon :
+        diff = np.divide(np.subtract(xr, xl), 2 * d)
+    return diff
 
 def radius(area):
     '''returns radius of circle on sphere in rad'''
@@ -253,25 +273,25 @@ def radius(area):
     r = np.sqrt(area / np.pi) / r_e
     return r
 
+def radius_m(area):
+    '''returns radius of circle on sphere in rad'''
+    r_e = 6.37111*10**6
+    r = np.sqrt(area / np.pi)
+    return r
+
 def get_polar(lon, lat):
     ''' gets the coordinates of a shifted pole, such that
     the given coordinate pair falls onto the equator
     of a transformed lat lon grid'''
 
-    # move pole to the opposite side of earth.
-    if 0 < lon <= np.pi:
-        plon = lon - np.pi
-    elif -np.pi <= lon < 0 :
-        plon = lon + np.pi
-    else:
-        plon = np.pi
-
-    if 0 <= lat <= np.pi/2 :
-        plat = np.pi/2 - lat
-    # if point is 'below' the equator, keep plon = lon (90deree angle)
-    elif -np.pi/2 <= lat < 0 :
-        plat = np.pi/2 + lat
-        plon = lon
+    plat = lat + np.pi/2
+    plon = lon
+    if plat > np.pi/2 :
+        plat = np.pi - plat
+        plon = plon + np.pi
+    if plon > np.pi:
+        # move pole to the opposite side of earth.
+        plon = plon - 2 * np.pi
 
     return plon, plat
 
@@ -297,9 +317,8 @@ def rotate_vec_to_local(plon, plat, x, y):
         '''
     sin_d, cos_d = rotation_jacobian(x[2][0], x[2][1], plon, plat)
 
-
-    x_tnd = [x[0] * cos_d - y[0] * sin_d, x[1], x[2]]
-    y_tnd = [x[0] * sin_d + y[0] * cos_d, y[1], y[2]]
+    x_tnd = [np.subtract(np.multiply(x[0],cos_d),np.multiply(y[0],sin_d)), x[1], x[2]]
+    y_tnd = [np.add(np.multiply(x[0], sin_d), np.multiply(y[0], cos_d)), y[1], y[2]]
 
     return x_tnd, y_tnd
 
@@ -317,7 +336,7 @@ def rotate_vec_to_global(plon, plat, x, y):
     return x_tnd, y_tnd
 
 def rotation_jacobian(lon, lat, plon, plat):
-    ''' returns entries of rotation matrix according to documentation of COSMOS pp. 27'''
+    ''' returns entries of rotation matrix according to documentation of COSMOS Part I pp. 27'''
 
     z_lamdiff = lon - plon
     z_a = np.cos(plat) * np.sin(z_lamdiff)
@@ -335,15 +354,34 @@ def num_hex_from_rings(num_rings):
     return num_hex
 
 def arc_len(p_x, p_y):
-    '''computes the length of a geodesic arc on a sphere (in radians)
-    using the haversine formula. Is precise for distances smaller than
-    half the circumference of earth.
-    p_x : lon, lat
-    p_y : lon, lat
-    out d in radians'''
+    ''' computes the length of a geodesic arc on a sphere (in radians)
+        using the haversine formula. Is precise for distances smaller than
+        half the circumference of earth.
+        p_x : lon, lat
+        p_y : lon, lat
+        out d in radians'''
     dlon = p_y[0] - p_x[0]
     dlat = p_y[1] - p_x[1]
     hav = np.sin(dlat / 2)**2 + np.cos(p_x[1]) * np.cos(p_y[1]) * np.sin(dlon / 2)**2
     d = 2 * np.arcsin(np.sqrt(hav))
     return d
+
+def get_dx_dy(c_coord, o_coord):
+    ''' computes dx(along lon) dy(along lat) for interpolation on sphere.
+        Uses relative coordinate distance. '''
+    # distance on fixed latitude
+    dlon = c_coord[0] - o_coord[0]
+    cos_lat = np.cos(c_coord[1])
+    if cos_lat <= 0.01:
+        dx = 0.0
+    else:
+        dx = dlon / np.cos(c_coord[1])
+    # distance on fixed longditude
+    dy = c_coord[1] - o_coord[1]
+    return dx, dy
+
+
+
+
+
 

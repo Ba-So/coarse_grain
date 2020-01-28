@@ -85,7 +85,7 @@ class Grid_Preparator(object):
 
         self.xfile.write_to('grid', co_ar, name='coarse_area', dims=['vertex'])
 
-    def compute_gradient_nfo(self):
+    def compute_coarse_gradient_nfo(self):
         ncells = self.xfile.get_dimsize_from('grid', 'vertex')
         cell_area = self.xfile.load_from('grid', 'dual_area_p')
         coarse_area = self.xfile.load_from('grid', 'coarse_area')
@@ -104,7 +104,7 @@ class Grid_Preparator(object):
         int_dist[:] = 10000.0
         cell_idx = np.arange(ncells)
 
-        grad.compute_gradient_nfo(
+        grad.compute_coarse_gradient_nfo(
             coords, coarse_area, cell_area, cell_idx, #input
             grad_coords, grad_dist, int_index, int_dist #output
         )
@@ -135,6 +135,55 @@ class Grid_Preparator(object):
             attrs={'long_name': 'interpolation distances'}
         )
 
+    def compute_fine_gradient_nfo(self):
+        ncells = self.xfile.get_dimsize_from('grid', 'vertex')
+        cell_area = self.xfile.load_from('grid', 'dual_area_p')
+
+        lon = self.xfile.load_from('grid', 'vlon')
+        lat = self.xfile.load_from('grid', 'vlat')
+        coords = [[loni, lati] for loni, lati in itertools.izip(lon, lat)]
+        times_rad = 2
+        max_members = 2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
+        grad_coords = self.create_array([ncells, 4, 2])
+        grad_dist = self.create_array([ncells])
+        grad_dist[:] = 0.0
+        int_index = self.create_array([ncells, 4, max_members], dtype='int')
+        int_index[:] = -1
+        int_dist = self.create_array([ncells, 4, max_members, 2])
+        int_dist[:] = 10000.0
+        cell_idx = np.arange(ncells)
+
+        grad.compute_fine_gradient_nfo(
+            coords, cell_area, cell_idx, #input
+            grad_coords, grad_dist, int_index, int_dist #output
+        )
+        print(np.min(int_dist))
+        print(np.max(int_dist))
+
+        self.xfile.new_dimension('grid', 'gradnum', 4)
+        self.xfile.new_dimension('grid', 'lonlat', 2)
+        self.xfile.write_to(
+            'grid', grad_coords, name='f_grad_coords',
+            dims=['gradnum', 'lonlat', 'vertex'],
+            attrs={'long_name': 'gradient coordinates'}
+        )
+        self.xfile.write_to(
+            'grid', grad_dist, name='f_grad_dist',
+            dims=['vertex'],
+            attrs={'long_name': 'gradient distances'}
+        )
+        self.xfile.new_dimension('grid', 'maxmem', max_members)
+        self.xfile.write_to(
+            'grid', int_index, dtype='i4', name='f_int_idx',
+            dims=['gradnum', 'maxmem', 'vertex'],
+            attrs={'long_name': 'interpolation indices'}
+        )
+        self.xfile.write_to(
+            'grid', int_dist, name='f_int_dist',
+            dims=['gradnum', 'maxmem', 'lonlat', 'vertex'],
+            attrs={'long_name': 'interpolation distances'}
+        )
+
     def execute(self):
         print('locating pentagons...')
         self.find_pentagons()
@@ -144,8 +193,10 @@ class Grid_Preparator(object):
         self.compute_coarse_area()
         # print('preparing local gradient computation...')
         # self.compute_l_gradient_nfo()
-        print('preparing gradient computation...')
-        self.compute_gradient_nfo()
+        print('preparing coarse gradient computation...')
+        self.compute_coarse_gradient_nfo()
+        print('preparing fine gradient computation...')
+        self.compute_fine_gradient_nfo()
 
         #write stuff
 

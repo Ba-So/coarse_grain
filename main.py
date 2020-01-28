@@ -11,7 +11,6 @@ import modules.math_mod as math
 import modules.phys_mod as phys
 import modules.cio as cio
 import modules.new_grad_mod as grad
-#import modules.op_mod as Operations
 
 class Operations(object):
     def func():
@@ -23,7 +22,7 @@ class Operations(object):
         rho = self.IO.load_from('data', 'RHO', numfile)
         varshape = np.shape(rho)
         rho = self.nfo_merge(rho)
-        if not self.IO.isin('data', 'RHO_BAR'):
+        if not self.IO.isin('newdata', 'RHO_BAR'):
             rho_bar = self.create_array(varshape)
             print('computing the coarse density values ...')
             math.bar_scalar(rho, self.c_area, self.c_mem_idx, rho_bar)
@@ -66,6 +65,28 @@ class Operations(object):
             self.int_idx, self.int_dist,
             xy_gradient)
         return xy_gradient
+
+    def xy_fine_gradients(self, xdata, ydata):
+        varshape = list(np.shape(xdata))
+        varshape.insert(1, 2)
+        varshape.insert(2, 2)
+        xy_gradient = self.create_array(varshape)
+        X = self.nfo_merge(xdata)
+        Y = self.nfo_merge(ydata)
+        idxlist = np.arange(np.shape(xdata)[0])
+        print('computing the xy gradients....')
+        int_idx = self.IO.load_from('grid', 'f_int_idx')
+        int_dist = self.IO.load_from('grid', 'f_int_dist')
+        g_coords = self.IO.load_from('grid', 'f_grad_coords')
+        g_dist = self.IO.load_from('grid', 'f_grad_dist')
+        grad.vector_gradient(
+            X, Y,
+            idxlist,
+            g_coords, g_dist,
+            int_idx, int_dist,
+            xy_gradient)
+        return xy_gradient
+
     def x_hat_gradients(self, xdata):
         varshape = list(np.shape(xdata))
         varshape.insert(1,2)
@@ -180,22 +201,23 @@ class Operations(object):
 
     def turbulent_shear_prod(self, rhoxy, gradxy, filenum=0, outname='T_FRIC'):
         print('computing the turbulent shear production values ...')
-        varshape = list(np.shape(rhoxy))
-        print('varshape {}'.format(varshape))
-        varshape.pop(1)
-        varshape.pop(1)
-        t_fric = self.create_array(varshape)
-        phys.turb_fric(rhoxy, gradxy, t_fric)
-        print('saving to file ...')
-        self.IO.write_to('results', t_fric, name=outname,
-                        attrs={
-                            'long_name' : 'turbulent_friction',
-                            'coordinates': 'vlat vlon',
-                            '_FillValue' : float('nan'),
-                            'grid_type' : 'unstructured'
-                            }, filenum=filenum
-                        )
-        return t_fric
+        if not(self.IO.check_for(['T_FRIC'], filenum)[0]):
+            varshape = list(np.shape(rhoxy))
+            varshape.pop(1)
+            varshape.pop(1)
+            t_fric = self.create_array(varshape)
+            T = self.IO.load_from('newdata', 'T_HAT', filenum)
+            phys.turb_fric(rhoxy, gradxy, T, t_fric)
+            print('saving to file ...')
+            self.IO.write_to('results', t_fric, name=outname,
+                            attrs={
+                                'long_name' : 'turbulent_friction',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=filenum
+                            )
+        return
 
     def turbulent_molec_fric(self, filenum=0, outname='F_FRIC'):
         print('computing the turbulent shear production values ...')
@@ -246,7 +268,7 @@ class Operations(object):
         varshape = list(np.shape(rhoxy))
         varshape.pop(1)
         t_heat = self.create_array(varshape)
-        T = self.IO.load_from('newdata', 'T', filenum)
+        T = self.IO.load_from('newdata', 'T_HAT', filenum)
         print('rhoxy: {}'.format(rhoxy[1, 1, :, 1]))
         print('grad_T {}'.format(grad_T[1, 1, :, 1]))
         phys.turb_heat(rhoxy, grad_T, T, t_heat)
@@ -259,15 +281,6 @@ class Operations(object):
                             'grid_type' : 'unstructured'
                             }, filenum=filenum
                         )
-        t_heat_kd = phys.turb_fric_erich(t_heat)
-        self.IO.write_to('results', t_heat_kd, name=(outname+'_KD'),
-                        attrs={
-                            'long_name' : 'turbulent_heat_flux in kd',
-                            'coordinates': 'vlat vlon',
-                            '_FillValue' : float('nan'),
-                            'grid_type' : 'unstructured'
-                            }, filenum=filenum
-                        )
         return t_heat
 
     def turbulent_enstrophy_flux(self, rhoxw, zstar_grad, filenum=0, outname='T_NSTPY'):
@@ -275,8 +288,6 @@ class Operations(object):
         varshape = list(np.shape(rhoxw))
         varshape.pop(1)
         t_nstpy = self.create_array(varshape)
-        print('rhoxw: {}'.format(rhoxw[1, 1, :, 1]))
-        print('zstar_grad {}'.format(zstar_grad[1, 1, :, 1]))
         phys.turb_enstrophy(rhoxw, zstar_grad, t_nstpy)
         print('saving to file ...')
         print('shape of t_nstpy: {}').format(np.shape(t_nstpy))
@@ -379,7 +390,7 @@ class Operations(object):
                             'grid_type' : 'unstructured'
                             }, filenum=filenum
                         )
-        if not(self.IO.isin('results', 'V_HAT')):
+        if not(self.IO.isin('results', 'V_HAT', filenum)):
             self.IO.write_to('results', U_hat, name='U_HAT',
                             attrs={
                                 'long_name': 'density weighted coarse zonal wind',
@@ -470,7 +481,7 @@ class Operations(object):
                             }, filenum=filenum
                         )
 
-    def prepare_heat(self, filenum=0):
+    def compute_T(self, filenum=0):
         rho = self.IO.load_from('data', 'RHO', filenum)
         varshape = list(np.shape(rho))
         rho = self.nfo_merge(rho)
@@ -507,6 +518,9 @@ class Operations(object):
                             }, filenum=filenum
                         )
 
+    def prepare_Tgrad(self, filenum=0):
+
+        T_hat = self.IO.load_from('newdata', 'T_HAT')
         print('computing the coarse Temperature gradients')
         T_gradient = self.x_hat_gradients(T_hat)
         del T_hat
@@ -628,37 +642,28 @@ class Operations(object):
         zstar_grad[:, 1, :, :] = self.IO.load_from('newdata', 'ZSTARY', filenum)[:,]
         return zstar_grad
 
-    def smag_tens(self, UV_grad, filenum=0):
-        print('UV_grad shape: {}'.format(np.shape(UV_grad)))
-        shape = list(np.shape(UV_grad))
-        S_tens = np.zeros(shape)
-        shape.pop(1)
-        shape.pop(1)
-        S_norm = np.zeros(shape)
-        sumthree = (UV_grad[:, 0, 0, :, :] + UV_grad[:, 1, 1, :, :]) / 2
-        for i in range(2):
-            for j in range(2):
-                if i != j:
-                    S_tens[:, i, j, :, :] = (UV_grad[:, i, j, :, :] + UV_grad[:, j, i, :, :])/2
-                else:
-                    S_tens[:, i, j, :, :] = np.subtract(UV_grad[:, i, j, :, :], sumthree[:,:,:])
-
-                S_norm = np.add(
-                    S_norm,
-                    np.sqrt(
-                        np.multiply(
-                            np.power(
-                                S_tens[:, i, j, :, :],
-                                2),
-                            2)
-                    ))
-
-        print('s_norm shape: {}'.format(np.shape(S_norm)))
-        for i in range(2):
-            for j in range(2):
-                S_tens[:,i,j,:,:] = np.multiply(S_tens[:,i,j,:,:], S_norm)
-        return S_tens
-
+    def coarse_smag_tens(self, UV_gradients, filenum=0):
+        #if not(self.IO.check_for(['SMAG_FRIC'], filenum)[0]):
+            T = self.IO.load_from('newdata', 'T_HAT', filenum)
+            varshape = list(np.shape(UV_gradients))
+            varshape.pop(1)
+            varshape.pop(1)
+            shear_tens = phys.shear_tensor_2D(UV_gradients)
+            norm_shear = phys.norm2_2d_tensor(shear_tens)
+            coarse_smag = self.create_array(varshape)
+            #tensor product
+            c_s = 0.2
+            d_filt = math.radius_m(self.c_area[0])**2
+            phys.smag_fric(d_filt, norm_shear, UV_gradients, T, coarse_smag)
+            del coarse_smag_tens, UV_gradients, T
+            self.IO.write_to('results', coarse_smag, name='SMAG_FRIC',
+                        attrs={
+                            'long_name': 'Smagorinsky coarse fric',
+                            'coordinates': 'vlat vlon',
+                            '_FillValue' : float('nan'),
+                            'grid_type' : 'unstructured'
+                            }, filenum=filenum
+                        )
 
 class CoarseGrain(Operations):
     def __init__(self, path, grid, data):
@@ -699,39 +704,22 @@ class CoarseGrain(Operations):
     def exec_heat_fric(self):
         for filenum, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(filenum + 1))
-            winds = (self.IO.isin('newdata','U_HAT', filenum) and self.IO.isin('newdata','V_HAT', filenum))
-            grads_v = (self.IO.isin('newdata','DVX', filenum) and self.IO.isin('newdata','DVY', filenum))
-            grads_u = (self.IO.isin('newdata','DUX', filenum) and self.IO.isin('newdata','DUY', filenum))
-            grads = grads_u and grads_v
-            if not(grads and winds):
+            if not(self.IO.check_for(['U_HAT', 'V_HAT', 'DVX', 'DUX', 'DVY', 'DVX'], filenum)[0]):
                 self.prepare_winds(filenum)
+            if not(self.IO.check_for(['T', 'T_HAT'], filenum)[0]):
+                self.compute_T(filenum)
             print('loading UVgrads now')
             UV_gradients = self.load_grads(filenum)
             print('computing turbulent friction')
             rhouv_flucts = self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
-            turbfric = self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
-            del rhouv_flucts, turbfric
+            self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
+            del rhouv_flucts
             print('computing coarse smagorinsky coefficient')
-            coarse_smag_tens = self.smag_tens(UV_gradients, filenum)
-            #tensor product
-            c_s = 0.2
-            d_filt = math.radius_m(self.c_area[0])
-            coarse_smag = -2*c_s*d_filt*np.einsum('ijklm,ijklm->ilm', coarse_smag_tens, UV_gradients)
-            del coarse_smag_tens, UV_gradients
-            self.IO.write_to('data', coarse_smag, name='Smag_Fric',
-                        attrs={
-                            'long_name': 'Smagorinsky coarse fric',
-                            'coordinates': 'vlat vlon',
-                            '_FillValue' : float('nan'),
-                            'grid_type' : 'unstructured'
-                            }, filenum=filenum
-                        )
-            del coarse_smag
+            self.coarse_smag_tens(UV_gradients, filenum)
             print('computing turbulent heating')
-            isT = self.IO.isin('newdata','T_HAT', filenum)
-            grads_T = (self.IO.isin('newdata','DTX', filenum) and self.IO.isin('newdata','DTY', filenum))
-            if not(grads_T and isT):
-                self.prepare_heat(filenum)
+
+            if not(self.IO.check_for(['DTX', 'DTY'], filenum)[0]):
+                self.prepare_Tgrad(filenum)
 
             # load_T_grad norms by T as well!!
             T_grad = self.load_T_grad(filenum)
@@ -744,12 +732,10 @@ class CoarseGrain(Operations):
     def execute(self):
         for filenum, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(filenum + 1))
-            winds = (self.IO.isin('newdata','U_HAT', filenum) and self.IO.isin('newdata','V_HAT', filenum))
-            grads_v = (self.IO.isin('newdata','DVX', filenum) and self.IO.isin('newdata','DVY', filenum))
-            grads_u = (self.IO.isin('newdata','DUX', filenum) and self.IO.isin('newdata','DUY', filenum))
-            grads = grads_u and grads_v
-            if not(grads and winds):
+            if not(self.IO.check_for(['U_HAT', 'V_HAT', 'DVX', 'DUX', 'DVY', 'DVX'], filenum)[0]):
                 self.prepare_winds(filenum)
+            if not(self.IO.check_for(['T', 'T_HAT'], filenum)[0]):
+                self.compute_T(filenum)
             print('loading UVgrads now')
             UV_gradients = self.load_grads(filenum)
 
@@ -769,10 +755,10 @@ class CoarseGrain(Operations):
     def heatflux(self):
         for filenum, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(filenum + 1))
-            isT = self.IO.isin('newdata','T_HAT', filenum)
-            grads_T = (self.IO.isin('newdata','DTX', filenum) and self.IO.isin('newdata','DTY', filenum))
-            if not(grads_T and isT):
-                self.prepare_heat(filenum)
+            if not(self.IO.check_for(['T', 'T_HAT'], filenum)[0]):
+                self.compute_T(filenum)
+            if not(self.IO.check_for(['DTX', 'DTY'], filenum)[0]):
+                self.prepare_Tgrad(filenum)
 
             # load_T_grad norms by T as well!!
             T_grad = self.load_T_grad(filenum)
@@ -785,9 +771,7 @@ class CoarseGrain(Operations):
     def presflux(self):
         for filenum, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(filenum + 1))
-            thet = self.IO.isin('newdata','THETA_HAT', filenum)
-            grads_ex = (self.IO.isin('newdata','DEXX', filenum) and self.IO.isin('newdata','DEXY', filenum))
-            if not(grads_ex and thet):
+            if not(self.IO.check_for(['THETA_HAT', 'DEXX', 'DEXY'], filenum)[0]):
                 self.prepare_pres(filenum)
 
             exner_grad = self.load_ex_grad(filenum)
@@ -801,18 +785,13 @@ class CoarseGrain(Operations):
         #todo: the whole thing put the pieces together
         for filenum, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(filenum + 1))
-            grads_v = (self.IO.isin('newdata','DVX', filenum) and self.IO.isin('newdata','DVY', filenum))
-            grads_u = (self.IO.isin('newdata','DUX', filenum) and self.IO.isin('newdata','DUY', filenum))
-            grads = grads_v and grads_u
-            if not(grads):
-                self.prepare_winds(filenum)
-
-            winds_geo = (self.IO.isin('data','UGEO', filenum) and self.IO.isin('newdata','VGEO', filenum))
-            if not winds_geo:
+            if not(self.IO.check_for(['UGEO', 'VGEO'], filenum)[0]):
                 sys.exit('geostrophic_winds not in file.. exiting')
 
-            winds_avg = (self.IO.isin('data','UG_HAT', filenum) and self.IO.isin('newdata','VG_HAT', filenum))
-            if not winds_avg:
+            if not(self.IO.check_for(['V_HAT', 'DVX', 'DUX', 'DVY', 'DVX'], filenum)[0]):
+                self.prepare_winds(filenum)
+
+            if not(self.IO.check_for(['UG_HAT', 'VG_HAT'], filenum)[0]):
                 print('computing the geostrophic winds...')
                 self.geostrophic_winds(filenum)
 
@@ -833,11 +812,9 @@ class CoarseGrain(Operations):
         '''computes the flux of enstrophy thorough the filter interface'''
         for filenum, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(filenum + 1))
-            winds = (self.IO.isin('newdata','U_HAT', filenum) and self.IO.isin('newdata','V_HAT', filenum))
-            grads_vorc = (self.IO.isin('newdata', 'ZSTARX', filenum) and self.IO.isin('newdata', 'ZSTARY', filenum))
-            if not(winds):
+            if not(self.IO.check_for(['U_HAT', 'V_HAT'], filenum)[0]):
                 self.prepare_winds(filenum)
-            if not(grads_vorc):
+            if not(self.IO.check_for(['ZSTARX', 'ZSTARY'], filenum)[0]):
                 # written
                 self.prepare_vorc(filenum)
 
@@ -865,28 +842,11 @@ class CoarseGrain(Operations):
     def smag(self):
         for numfile, file in enumerate(self.IO.datafiles):
             print('processing file number {}'.format(numfile + 1))
-            winds = (self.IO.isin('data','U_HAT', numfile) and self.IO.isin('data','V_HAT', numfile))
-            grads_v = (self.IO.isin('data','DVX', numfile) and self.IO.isin('data','DVY', numfile))
-            grads_u = (self.IO.isin('data','DUX', numfile) and self.IO.isin('data','DUY', numfile))
-            grads = grads_v and grads_u
-            if not(grads and winds):
+            if not( self.IO.check_for('U_HAT', 'V_HAT', 'DVX', 'DVY', 'DUX', 'DUY', filenum)[0]):
                 self.prepare_winds(numfile)
             coarse_UV_gradients = self.load_grads(numfile)
             #computation of smagorinski tensor
-            coarse_smag_tens = self.smag_tens(coarse_UV_gradients, numfile)
-            #tensor product
-            c_s = 0.2
-            d_filt = math.radius_m(self.c_area[0])
-            coarse_smag = -2*c_s*d_filt*np.einsum('ijklm,ijklm->ilm', coarse_smag_tens, coarse_UV_gradients)
-            del coarse_UV_gradients, coarse_smag_tens
-            self.IO.write_to('data', coarse_smag, name='Smag_Fric',
-                        attrs={
-                            'long_name': 'Smagorinsky coarse fric',
-                            'coordinates': 'vlat vlon',
-                            '_FillValue' : float('nan'),
-                            'grid_type' : 'unstructured'
-                            }, filenum=numfile
-                        )
+            self.coarse_smag_tens(coarse_UV_gradients, numfile)
 
     def testing(self):
         xname = 'U_HAT'
@@ -909,17 +869,7 @@ class CoarseGrain(Operations):
         print(oo[3,3])
         print(np.average(oo))
 
-
 if __name__ == '__main__':
-#    path = '/home1/kd031/projects/icon/experiments/BCW07'
-#    gridfile = r'iconR\dB\d{2}-grid_refined_\d.nc'
-#    datafile = r'BCW_R2B05L70.nc'
-  # cg.testing()
-   #cg.convert_to_erich()
-  #  cg.molecfric()
-  # cg.ageostrophic()
-  # cg.smag()
-  # cg.heatflux()
     parser = argparse.ArgumentParser(description='Coarse-Grain ICON Output files')
     parser.add_argument(
         'path_to_file',
@@ -949,12 +899,12 @@ if __name__ == '__main__':
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
     cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0])
-    cg.enstrophyflux()
-    cg.exec_heat_fric()
+#    cg.enstrophyflux()
+ #   cg.exec_heat_fric()
   # cg.testing()
    #cg.convert_to_erich()
 #    cg.execute()
   #  cg.molecfric()
   # cg.ageostrophic()
-#    cg.smag()
+    cg.smag()
  #   cg.heatflux()

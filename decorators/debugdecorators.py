@@ -6,12 +6,13 @@ class TimeThis(object):
     def __init__(self, decorated):
         self._decorated = decorated
     def __call__(self, *args, **kwargs):
-        before = datetime.datetime.now()
+        self.before = datetime.datetime.now()
         print('Timing.')
         x = self._decorated(*args, **kwargs)
-        after = datetime.datetime.now()
-        diff = after - before
-        print("Elapsed Time: {}min {}s".format(diff.seconds // 60, diff.seconds % 60))
+        self.after = datetime.datetime.now()
+        self.diff = self.after - self.before
+        print("before {} , after {}").format(self.before, self.after)
+        print("Elapsed Time: {} min {} s".format(int(self.diff.total_seconds() // 60), self.diff.total_seconds() % 60))
         return x
 
 class PrintArgs(object):
