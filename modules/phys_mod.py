@@ -122,15 +122,15 @@ def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, sca
 @TimeThis
 @requires({
     'full' : [],
-    'slice': ['rhoxy', 'gradxy', 'T', 'tfric']
+    'slice': ['rhoxy', 'gradxy', 'tfric']
 })
 @ParallelNpArray(gmp)
-def turb_fric(rhoxy, gradxy, T, tfric):
-    tfric[:, ] = np.divide((-1) * np.einsum(
+def turb_fric(rhoxy, gradxy, tfric):
+    tfric[:, ] = (-1) * np.einsum(
         'kijlm,kijlm->klm',
         rhoxy,
         gradxy
-    ), T)
+    )
 
 @TimeThis
 def turb_fric_erich(tfric):
@@ -213,12 +213,12 @@ def turb_pres(rhoxy, gradex, t_presc):
 def turb_heat(rhoxy, gradT, T, t_heat):
     '''computes the turbulent heat flux'''
     c_p = 1004.64
-    #gradT_T = np.divide(gradT, T)
+#   gradT_T = np.divide(gradT, T)
     t_heat[:, ] = np.divide((-1) * np.einsum(
         'kilm,kilm->klm',
         rhoxy,
         gradT
-    ) * (c_p), np.square(T))
+    ) * (c_p), T)
 
 @TimeThis
 @requires({
@@ -226,7 +226,7 @@ def turb_heat(rhoxy, gradT, T, t_heat):
     'slice': ['rhoxw', 'zstar_grad', 't_nstpy']
 })
 @ParallelNpArray(gmp)
-def turb_enstrophy(rhoww, zstar_grad, t_nstpy):
+def turb_enstrophy(rhoxw, zstar_grad, t_nstpy):
     '''computes the turbulent enstrophy flux'''
     t_nstpy[:, ] = (-1) * np.einsum(
         'kilm, kilm->klm',

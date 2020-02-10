@@ -3,7 +3,7 @@
 import ctypes
 import numpy as np
 from multiprocessing import Process, Queue, Array
-from debugdecorators import TimeThis, PrintArgs, PrintReturn
+from .debugdecorators import TimeThis, PrintArgs, PrintReturn
 
 class Mp(object):
     def __init__(self, switch, num_procs):

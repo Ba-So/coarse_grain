@@ -191,12 +191,10 @@ class Grid_Preparator(object):
         self.compute_hex_area_members()
         print('computing coarse area...')
         self.compute_coarse_area()
-        # print('preparing local gradient computation...')
-        # self.compute_l_gradient_nfo()
         print('preparing coarse gradient computation...')
         self.compute_coarse_gradient_nfo()
-        print('preparing fine gradient computation...')
-        self.compute_fine_gradient_nfo()
+      # print('preparing fine gradient computation...')
+      # self.compute_fine_gradient_nfo()
 
         #write stuff
 
