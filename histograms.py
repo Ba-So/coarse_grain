@@ -5,7 +5,7 @@ import os
 import glob
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.path as path
@@ -18,8 +18,8 @@ import main as ma
 
 
 def plot_histogram_2(data, name, lev=None, time=None):
-    print lev
-    print time
+    print("level {}".format(lev))
+    print("time {}".format(time))
     matplotlib.rcParams.update({'font.size':20})
 
     mu = np.mean(data)
