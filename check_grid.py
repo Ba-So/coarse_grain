@@ -97,7 +97,7 @@ def excentricity_areas(IO):
     lons = IO.load_from('grid', 'vlon')
     print('lats: {}'.format(np.shape(lats)))
     mean_quad_dev = np.zeros(np.shape(coarse_area))
-    for idx_set, area_i in itertools.izip(coarse_grain, coarse_area):
+    for idx_set, area_i in zip(coarse_grain, coarse_area):
         ra = math.radius(area_i) * r_e
         rs = []
         idxj = [x for x in idx_set if x > -1]

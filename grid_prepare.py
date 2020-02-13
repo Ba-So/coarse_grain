@@ -92,7 +92,7 @@ class Grid_Preparator(object):
 
         lon = self.xfile.load_from('grid', 'vlon')
         lat = self.xfile.load_from('grid', 'vlat')
-        coords = [[loni, lati] for loni, lati in itertools.izip(lon, lat)]
+        coords = [[loni, lati] for loni, lati in zip(lon, lat)]
         times_rad = 2
         max_members = 2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
         grad_coords = self.create_array([ncells, 4, 2])
@@ -141,7 +141,7 @@ class Grid_Preparator(object):
 
         lon = self.xfile.load_from('grid', 'vlon')
         lat = self.xfile.load_from('grid', 'vlat')
-        coords = [[loni, lati] for loni, lati in itertools.izip(lon, lat)]
+        coords = [[loni, lati] for loni, lati in zip(lon, lat)]
         times_rad = 2
         max_members = 2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
         grad_coords = self.create_array([ncells, 4, 2])
@@ -207,7 +207,7 @@ class Grid_Preparator(object):
 @ParallelNpArray(gmp)
 def define_hex_area(cell_neighbour_idx, num_hex, num_edges, cell_index, a_nei_idx):
 
-    for idx, ani in itertools.izip(cell_index, a_nei_idx):
+    for idx, ani in zip(cell_index, a_nei_idx):
         jh = 0
         jh_c = 1
         ani[0] = idx
