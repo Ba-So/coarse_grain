@@ -146,7 +146,7 @@ class IOcontroller(object):
                 found = self.isin(where, who, filenum)
                 if found:
                     foundit[who] = [found, where]
-        for key, item in foundit.iteritems():
+        for key, item in foundit.items():
             if not item[0]:
                 allfound = False
 
@@ -216,7 +216,7 @@ class IOcontroller(object):
                     ]
                     for name, variable in src.variables.items():
                         if name in include:
-                            x = dst.createVariable(
+                            dst.createVariable(
                                 name, variable.datatype,
                                 variable.dimensions, zlib=True,
                                 complevel=9
@@ -250,7 +250,7 @@ class IOcontroller(object):
                     ]
                     for name, variable in src.variables.items():
                         if name in include:
-                            x = dst.createVariable(
+                            dst.createVariable(
                                 name, variable.datatype,
                                 variable.dimensions, zlib=True,
                                 complevel=9
