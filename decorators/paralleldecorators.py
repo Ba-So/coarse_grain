@@ -85,7 +85,7 @@ class ParallelNpArray(object):
 def shared_np_array(shape, dtype='float'):
     """Form shared memory 1D numpy array"""
     from multiprocessing import Array
-    arr_len = np.product(shape)
+    arr_len = int(np.product(shape))
     if dtype == 'float':
         shared_array_base = Array(ctypes.c_double, arr_len)
     elif dtype == 'int':
