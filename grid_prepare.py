@@ -91,7 +91,7 @@ class Grid_Preparator(object):
         lat = self.xfile.load_from('grid', 'vlat')
         coords = [[loni, lati] for loni, lati in zip(lon, lat)]
         times_rad = 2
-        max_members = 2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2
+        max_members = int(2 + 6 * times_rad/2 * (times_rad/2 + 1) / 2)
         grad_coords = self.create_array([ncells, 4, 2])
         grad_dist = self.create_array([ncells])
         grad_dist[:] = 0.0
