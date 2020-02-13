@@ -11,7 +11,7 @@ class TimeThis(object):
         x = self._decorated(*args, **kwargs)
         self.after = datetime.datetime.now()
         self.diff = self.after - self.before
-        print("before {} , after {}").format(self.before, self.after)
+        print("before {} , after {}".format(self.before, self.after))
         print("Elapsed Time: {} min {} s".format(int(self.diff.total_seconds() // 60), self.diff.total_seconds() % 60))
         return x
 
@@ -26,7 +26,7 @@ class TimeThis(object):
 #        x = self._decorated(*args, **kwargs)
 #        self.after = datetime.datetime.now()
 #        self.diff = self.after - self.before
-##       print("before {} , after {}").format(self.before, self.after)
+##       print("before {} , after {}".format(self.before, self.after))
 #        print("Elapsed Time: {} min {} s".format(int(self.diff.total_seconds() // 60), self.diff.total_seconds() % 60))
 #        return x
 

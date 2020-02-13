@@ -17,7 +17,7 @@ class IOcontroller(object):
             self.gridfile = self.find(grid)
         if data:
             self.datafiles = self.find(data)
-            print('datafiles: {}').format(self.datafiles)
+            print('datafiles: {}'.format(self.datafiles))
             if out:
                 if not os.path.exists(os.path.join(self.experiment_path,'filtered')):
                     os.makedirs(os.path.join(self.experiment_path, 'filtered'))
@@ -197,7 +197,7 @@ class IOcontroller(object):
                 with Dataset(os.path.join(self.experiment_path, datafile)) as (src
                     ), Dataset(os.path.join(self.experiment_path, self.outfiles[i]), "w") as (dst
                     ):
-                    print('{}').format(self.outfiles[i])
+                    print('{}'.format(self.outfiles[i]))
                     print('files open')
                     # copy global attributes all at once via dictionary
                     dst.setncatts(src.__dict__)

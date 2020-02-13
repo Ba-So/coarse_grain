@@ -12,5 +12,5 @@ def test_func(a,b):
 
 if __name__ == '__main__':
     a = test_func(100,10000)
-    print('result is {}').format(a)
+    print('result is {}'.format(a))
 

@@ -3,10 +3,8 @@
 import numpy as np
 import sys as sys
 from os import path
-import itertools
 import argparse
-from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array
-from decorators.debugdecorators import TimeThis, PrintArgs, PrintReturn
+from decorators.paralleldecorators import gmp, shared_np_array
 import modules.math_mod as math
 import modules.phys_mod as phys
 import modules.cio as cio
@@ -16,7 +14,7 @@ class Operations(object):
     def func():
         #wrappers deciding how much information a part of the code recieves.
         #either whole or only slices.
-        return func()
+        return None
 
     def bar_avg_2Dvec(self, xname, yname, numfile=0):
         rho = self.IO.load_from('data', 'RHO', numfile)
@@ -291,7 +289,7 @@ class Operations(object):
         t_nstpy = self.create_array(varshape)
         phys.turb_enstrophy(rhoxw, zstar_grad, t_nstpy)
         print('saving to file ...')
-        print('shape of t_nstpy: {}').format(np.shape(t_nstpy))
+        print('shape of t_nstpy: {}'.format(np.shape(t_nstpy)))
         self.IO.write_to('results', t_nstpy, name=outname,
                         attrs={
                             'long_name' : 'turbulent_enstrophy_flux',
@@ -653,7 +651,6 @@ class Operations(object):
             norm_shear = phys.norm2_2d_tensor(shear_tens)
             coarse_smag = self.create_array(varshape)
             #tensor product
-            c_s = 0.2
             d_filt = math.radius_m(self.c_area[0])**2
             phys.smag_fric(d_filt, norm_shear, UV_gradients, T, coarse_smag)
             del d_filt, norm_shear, UV_gradients, T
@@ -763,7 +760,7 @@ class CoarseGrain(Operations):
 
             rhouv_flucts = self.rhoxy_averages_scalar('U', 'V', 'T', 'U_HAT', 'V_HAT', 'T_HAT', filenum)
             print('computing turbulent friction...')
-            turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad)
+            self.turbulent_heat_flux(rhouv_flucts, T_grad)
             print('done.')
 
     def presflux(self):
@@ -776,7 +773,7 @@ class CoarseGrain(Operations):
 
             rhouv_flucts = self.rhoxy_averages_scalar('U', 'V', 'THETA_V', 'U_HAT', 'V_HAT', 'THETA_HAT', filenum)
             print('computing turbulent friction...')
-            turbfric = self.turbulent_pres_flux(rhouv_flucts, exner_grad)
+            self.turbulent_pres_flux(rhouv_flucts, exner_grad)
             print('done.')
 
     def ageostrophic(self):
@@ -800,10 +797,10 @@ class CoarseGrain(Operations):
             turbfric = self.turbulent_shear_prod(rhouv_flucts, UV_gradients, filenum, 'GEO_FRIC')
             del rhouv_flucts
             print('computing erichs way...')
-            turberich = self.turb_fric_Kd(filenum, 'GEO_FR_KD')
+            self.turb_fric_Kd(filenum, 'GEO_FR_KD')
 
             print('computing K...')
-            K = self.friction_coefficient(UV_gradients, turbfric, filenum, 'GEO_K')
+            self.friction_coefficient(UV_gradients, turbfric, filenum, 'GEO_K')
             del UV_gradients
 
     def enstrophyflux(self):
@@ -821,7 +818,7 @@ class CoarseGrain(Operations):
             # written
             zstar_grad = self.load_zstar_grad(filenum)
             # write routine
-            ens_flux = self.turbulent_enstrophy_flux(rhovw_flucts, zstar_grad)
+            self.turbulent_enstrophy_flux(rhovw_flucts, zstar_grad)
 
     def r_r_comp(self):
         for filenum, file in enumerate(self.IO.datafiles):
@@ -833,9 +830,9 @@ class CoarseGrain(Operations):
             if not(grads and winds):
                 self.prepare_winds(filenum)
 
-            UV_gradients = self.load_grads(filenum)
+            self.load_grads(filenum)
 
-            rhouv_flucts = self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
+            self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
 
     def smag(self):
         for numfile, file in enumerate(self.IO.datafiles):
@@ -887,13 +884,17 @@ if __name__ == '__main__':
         'data_file',
         metavar = 'dataf',
         type = str,
-        nargs = '+',    
+        nargs = '+',
         help='a string specifying the name of the datafile'
     )
     args = parser.parse_args()
     print(
         'coarse_graining the datafile {} using the gridfile {}.'
-    ).format(path.join(args.path_to_file[0], args.data_file[0]), path.join(args.path_to_file[0], args.grid_file[0]))
+        .format(
+                path.join(args.path_to_file[0], args.data_file[0]),
+                path.join(args.path_to_file[0], args.grid_file[0])
+                )
+        )
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
     cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0])
