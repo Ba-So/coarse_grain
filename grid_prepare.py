@@ -4,7 +4,6 @@ import argparse
 from shutil import copyfile
 from os import path
 import sys
-import itertools
 import numpy as np
 import xarray as xr
 from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array

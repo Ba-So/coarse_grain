@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # coding=utf-8
-import itertools
 import sys
 import numpy as np
 from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array

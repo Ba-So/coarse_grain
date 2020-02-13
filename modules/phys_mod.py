@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
 import numpy as np
-import itertools
 
 from decorators.debugdecorators import TimeThis, PrintArgs
 from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array

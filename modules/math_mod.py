@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
 import numpy as np
-import itertools
 import sys
 import pprint
 from decorators.debugdecorators import TimeThis, PrintArgs

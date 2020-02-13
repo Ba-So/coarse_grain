@@ -3,7 +3,6 @@
 
 import numpy as np
 import sys as sys
-import itertools
 from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array
 from decorators.debugdecorators import TimeThis, PrintArgs, PrintReturn
 import modules.math_mod as math

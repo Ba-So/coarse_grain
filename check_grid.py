@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
 import numpy as np
-import itertools
 import modules.cio as cio
 import modules.math_mod as math
 import matplotlib.pyplot as plt
