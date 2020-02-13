@@ -3,11 +3,9 @@
 import argparse
 from shutil import copyfile
 from os import path
-import sys
 import numpy as np
-import xarray as xr
 from decorators.paralleldecorators import gmp, ParallelNpArray, shared_np_array
-from decorators.debugdecorators import TimeThis, PrintArgs, PrintReturn
+from decorators.debugdecorators import TimeThis
 from decorators.functiondecorators import requires
 import modules.cio as cio
 import modules.math_mod as math
@@ -106,7 +104,7 @@ class Grid_Preparator(object):
         grad.compute_coarse_gradient_nfo(
             coords, coarse_area, cell_area, cell_idx, #input
             grad_coords, grad_dist, int_index, int_dist #output
-        )
+        )   
         print(np.min(int_dist))
         print(np.max(int_dist))
 
@@ -273,7 +271,6 @@ if __name__ == '__main__':
         help = 'an integer specifying the number of rings to be coarse-grained over.'
     )
     args = parser.parse_args()
-    print(args)
     print(
         'preparing the gridfile {} for coarse grainig over {} rings.'.format(
                 path.join(args.path_to_file[0], args.grid_name[0]),

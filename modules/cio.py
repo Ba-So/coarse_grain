@@ -83,7 +83,8 @@ class IOcontroller(object):
                 dim_val = xdata.dimensions[dim].size
             else:
                 sys.exit('dimension {} not a dimension of file: {}'.format(dim, xfile))
-        return dim_val
+                dim_val = 0
+        return int(dim_val)
 
     def new_dimension(self, where, dimname, dimsize, filenum=0):
         xfile = self.get_filepath(where, filenum)

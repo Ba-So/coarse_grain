@@ -350,7 +350,7 @@ def num_hex_from_rings(num_rings):
     '''computes the number of hexagons in an area made up of
     rings of hexagons around a central hexagon'''
     num_hex = 1 + 6 * num_rings * (num_rings + 1) / 2
-    return num_hex
+    return int(num_hex)
 
 def arc_len(p_x, p_y):
     ''' computes the length of a geodesic arc on a sphere (in radians)
