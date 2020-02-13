@@ -1,2 +1,9 @@
 # exclude .pyc and vim swp files:
 *.pyc
+*.log
+*.swp
+*.crash
+tags
+*.png
+*.txt
+data

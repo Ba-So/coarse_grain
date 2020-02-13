@@ -53,7 +53,7 @@ def compute_coarse_gradient_nfo(coords, coarse_area, cell_area, cell_idx, grad_c
 @TimeThis
 @requires({
     'full' : ['coords'],
-    'slice' : ['coarse_area', 'cell_area', 'cell_idx',
+    'slice' : ['cell_area', 'cell_idx',
                'grad_coords', 'grad_dist',
                'int_idx', 'int_dist']
 })
@@ -62,7 +62,7 @@ def compute_fine_gradient_nfo(coords, cell_area, cell_idx, grad_coords, grad_dis
     ''' parallelized preparation of gradient computation
     '''
     i_gd = -1
-    for cidx, cerea_i, g_coord_i, i_idx_i, i_dist_i in itertools.izip(cell_idx, coarse_area, cell_area, grad_coords, int_idx, int_dist):
+    for cidx, cerea_i, g_coord_i, i_idx_i, i_dist_i in itertools.izip(cell_idx, cell_area, grad_coords, int_idx, int_dist):
         i_gd += 1
         c_coord = coords[cidx]
         # compute gradient coordinates
@@ -296,13 +296,14 @@ def vector_gradient(x, y, idx, grad_coords, grad_dist, int_mem_idx, int_dist, gr
         clat, clon = x[idx_i][2] # lat lon info contained in x[i] and y[i]
         for j in range(4):
             # filter dummy values (negative integers)
-            imij = clean_indices(imi_i[j])
+            # and distances
+            imij, idij = clean_indices_new(imi_i[j], id_i[j])
+            print('imij: \n {} \n idij: \n {}').format(imij, idij)
             # get set members
             x_set = filter_values(x, imij)
             y_set = filter_values(y, imij)
-            # and distances
-            idij = clean_values(id_i[j], imi_i[j])
             # get coordinates
+            # check to catch weird error
             c_coord = gc_i[j]
             # do the interpolation
             grad_vals = math.lst_sq_intp_vec(x_set, y_set, c_coord, idij)
@@ -347,9 +348,8 @@ def scalar_gradient(x, grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
         X_vals = [] # (N, S, E, W)
         for j in range(4):
             # filter dummy values (negative integers)
-            imij = clean_indices(imi_i[j])
+            imij, idij = clean_indices_new(imi_i[j], id_i[j])
             x_set = filter_values(x, imij)
-            idij = clean_values(id_i[j], imi_i[j])
             c_coord = gc_i[j]
             grad_vals = math.lst_sq_intp(x_set, c_coord, idij)
             X_vals.append(grad_vals)
@@ -372,19 +372,28 @@ def convert_rad_m(dist):
         sys.exit('invalid partial_u')
     return partial_U
 
+def clean_indices_new(idx, dist):
+    idx_out = []
+    dist_out = []
+    for idx_i, dist_i in itertools.izip(idx, dist):
+        if (idx_i > -1) and np.all(np.less(dist_i, 10000.0)):
+            idx_out.append(idx_i)
+            dist_out.append(dist_i)
+    return idx_out, np.array(dist_out)
+
 def clean_indices(idx):
     ''' ensures only positive values within an array of integers '''
     idc_set = [int(k) for k in idx if k > -1]
     return idc_set
 
-def clean_values(lst, check):
+def clean_values_new(lst, check):
     out = []
     for lst_i, check_i in itertools.izip(lst, check):
         if check_i > -1:
             out.append(lst_i)
     return np.array(out)
 
-def clean_values_old(lst):
+def clean_values(lst):
     '''removes negative and zero values'''
     return np.array([k for k in lst if np.all(np.less(k,10000.0))])
 def filter_values(x, indices):

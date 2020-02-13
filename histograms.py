@@ -145,17 +145,18 @@ class Run(object):
             print('done')
 
     def getlabels(self, var):
-        if var == 'T_FRIC':
-            ylabel=r'$log(P(\tilde \sigma _M$))'
-            xlabel=r'$\tilde \sigma _M\ [J/Ks\ 1/m^3]$'
-            what=r'\tilde \sigma _M'
-        elif var == 'T_HEAT':
+        if var == 'KIN_TRANS':
+            ylabel=r'$log(P(\tilde \epsilon _M$))'
+            xlabel=r'$\tilde \epsilon _M\ [J/s\ 1/m^3]$'
+            what=r'\tilde \epsilon _M'
+        elif var == 'INT_TRANS':
             ylabel=r'$log(P(\tilde \sigma _T$))'
-            xlabel=r'$\tilde \sigma _T\ [J/Ks\ 1/m^3]$'
-            what=r'\tilde \sigma _T'
+            xlabel=r'$\tilde \epsilon _T\ [J/s\ 1/m^3]$'
+            what=r'\tilde \epsilon _T'
         else:
             ylabel=r'$log(P({}))$'.format(var)
             xlabel=r'${}$'.format(var)
+            what=r'\tilde random'
         return xlabel, ylabel, what
 
     def bin_min_max_num(self, data):
@@ -276,7 +277,7 @@ class Run(object):
         else:
             pass
 
-        plt.savefig('bilder/histogramm_{}'.format(oname),dpi=73)
+        plt.savefig('bilder/histogramm_{}'.format(oname),dpi=73,format='eps')
         plt.show()
         plt.close()
 
@@ -321,6 +322,7 @@ if __name__ == '__main__':
     )
     print(args)
     runner = Run(args)
+    runner.run()
 #    runner.run(lev=43)
 #    runner.run()
 #    for time in range(9):

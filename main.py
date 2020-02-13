@@ -887,7 +887,7 @@ if __name__ == '__main__':
         'data_file',
         metavar = 'dataf',
         type = str,
-        nargs = '+',
+        nargs = '+',    
         help='a string specifying the name of the datafile'
     )
     args = parser.parse_args()
@@ -897,5 +897,6 @@ if __name__ == '__main__':
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
     cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0])
+#    cg.gradient_debug()
     cg.exec_kine_transfer()
     cg.exec_heat_transfer()

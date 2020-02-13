@@ -370,6 +370,8 @@ def get_dx_dy(c_coord, o_coord):
     ''' computes dx(along lon) dy(along lat) for interpolation on sphere.
         Uses relative coordinate distance. '''
     # distance on fixed latitude
+    dx = 99999
+    dy = 99999
     dlon = c_coord[0] - o_coord[0]
     cos_lat = np.cos(c_coord[1])
     if cos_lat <= 0.01:

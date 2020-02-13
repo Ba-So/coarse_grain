@@ -274,6 +274,7 @@ if __name__ == '__main__':
         help = 'an integer specifying the number of rings to be coarse-grained over.'
     )
     args = parser.parse_args()
+    print(args)
     print(
         'preparing the gridfile {} for coarse grainig over {} rings.'
     ).format(path.join(args.path_to_file[0], args.grid_name[0]), args.num_rings[0])

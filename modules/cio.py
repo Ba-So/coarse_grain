@@ -170,9 +170,9 @@ class IOcontroller(object):
         attrs = {'long_name': 'no name'}):
 
         xfile = self.get_filepath(where, filenum)
-        if not(where == 'grid'):
+        #if not(where == 'grid'):
             # switch rows, so ncell is back in the back
-            data = np.moveaxis(data, 0, -1)
+        data = np.moveaxis(data, 0, -1)
         if where == 'data':
             # never write to original file
             xfile = self.get_filepath('newdata', filenum)
