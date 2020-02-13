@@ -297,7 +297,6 @@ def vector_gradient(x, y, idx, grad_coords, grad_dist, int_mem_idx, int_dist, gr
             # filter dummy values (negative integers)
             # and distances
             imij, idij = clean_indices_new(imi_i[j], id_i[j])
-            print('imij: \n {} \n idij: \n {}'.format(imij, idij))
             # get set members
             x_set = filter_values(x, imij)
             y_set = filter_values(y, imij)
