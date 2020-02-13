@@ -275,8 +275,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
     print(
-        'preparing the gridfile {} for coarse grainig over {} rings.'
-    ).format(path.join(args.path_to_file[0], args.grid_name[0]), args.num_rings[0])
+        'preparing the gridfile {} for coarse grainig over {} rings.'.format(
+                path.join(args.path_to_file[0], args.grid_name[0]),
+                args.num_rings[0])
+        )
     new_name = args.grid_name[0][:-3] +  '_refined_{}.nc'.format(args.num_rings[0])
     copyfile(
         path.join(args.path_to_file[0], args.grid_name[0]),
