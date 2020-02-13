@@ -29,7 +29,7 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
         over the area specified by c_area and c_mem_idx,
         takes data of kind [[xdata, cell_area, [lat, lon], ...]
         returns numpy'''
-    for idx_set, c_a, reti in itertools.izip(c_mem_idx, c_area, ret):
+    for idx_set, c_a, reti in zip(c_mem_idx, c_area, ret):
         try:
             idx_set = np.extract(np.greater(idx_set, -1), idx_set)
             reti[:,] = avg_bar([data[j] for j in idx_set], c_a)
@@ -44,7 +44,7 @@ def bar_scalar(data, c_area, c_mem_idx, ret):
 })
 @ParallelNpArray(gmp)
 def bar_2Dvector(xdata, ydata, c_area, c_mem_idx, retx, rety):
-    for idx_set, c_a, rxi, ryi in itertools.izip(c_mem_idx, c_area, retx, rety):
+    for idx_set, c_a, rxi, ryi in zip(c_mem_idx, c_area, retx, rety):
         idx_set = np.extract(np.greater(idx_set, -1), idx_set)
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
@@ -80,7 +80,7 @@ def avg_bar(data, c_area):
 })
 @ParallelNpArray(gmp)
 def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
-    for idx_set, rbi, cai, reti in itertools.izip(c_mem_idx, rho_bar, c_area, ret):
+    for idx_set, rbi, cai, reti in zip(c_mem_idx, rho_bar, c_area, ret):
         data_set = [data[j] for j in idx_set]
         rho_set = [rho[j] for j in idx_set]
         reti[:,] = avg_hat(data_set, rho_set, rbi, cai)
@@ -93,7 +93,7 @@ def hat_scalar(data, rho, rho_bar, c_area, c_mem_idx, ret):
 })
 @ParallelNpArray(gmp)
 def hat_2Dvector(xdata, ydata, rho, rho_bar, c_area, c_mem_idx, retx, rety):
-    for idx_set, r_b_i, c_a_i, rxi, ryi in itertools.izip(c_mem_idx, rho_bar, c_area, retx, rety):
+    for idx_set, r_b_i, c_a_i, rxi, ryi in zip(c_mem_idx, rho_bar, c_area, retx, rety):
         idx_set = np.extract(np.greater(idx_set, -1), idx_set)
         x_set = [xdata[j] for j in idx_set]
         y_set = [ydata[j] for j in idx_set]
@@ -114,7 +114,7 @@ def avg_hat(data, rho, rho_bar, c_area):
     returs numpy"""
     #create empty ntim, lev array for summation
     xsum = np.zeros(data[0][0].shape)
-    for xbit, rbit in itertools.izip(data, rho):
+    for xbit, rbit in zip(data, rho):
         # multiply data with area
         vals = xbit[0] * xbit[1]
         # multiply data with density
@@ -193,11 +193,11 @@ def dist_avg_scalar(x_values, grid_nfo):
     '''
     factor = 0
     # multiply cell_area and distance from center to recieve weight
-    weights = [x_val[1]* x_rad for x_val, x_rad in itertools.izip(x_values, grid_nfo[1])]
+    weights = [x_val[1]* x_rad for x_val, x_rad in zip(x_values, grid_nfo[1])]
     factor = np.sum(weights)
 
     average = 0
-    for x_val,weight in itertools.izip(x_values, weights):
+    for x_val,weight in zip(x_values, weights):
         average = average + x_val[0] * weight
     retval = 0.0
     np.seterr(all='raise')
@@ -300,7 +300,7 @@ def rotate_multiple_to_local(plon, plat, x, y):
     len_x = len(x)
     x_tnd = []
     y_tnd = []
-    for xi,yi in itertools.izip(x, y):
+    for xi,yi in zip(x, y):
         out = rotate_vec_to_local(
             plon, plat,
             xi, yi

@@ -18,7 +18,7 @@ import modules.math_mod as math
 def compute_dyad_Rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X') assuming the Reynolds postulates to be accurate'''
     out = []
-    for idx_set, c_area, x_avg, y_avg, reti in itertools.izip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, ret):
+    for idx_set, c_area, x_avg, y_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         x_flucts, y_flucts = math.vec_flucts(
             [x_vals[j] for j in idx_i],
@@ -50,7 +50,7 @@ def compute_dyad_Rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coa
 def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X') without relying on the Reynolds postulates'''
     out = []
-    for idx_set, c_area, x_avg, y_avg, rhoi, reti in itertools.izip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, ret):
+    for idx_set, c_area, x_avg, y_avg, rhoi, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         x_set = [x_vals[j] for j in idx_i]
         y_set = [y_vals[j] for j in idx_i]
@@ -94,7 +94,7 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx
 def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, scalar_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X')'''
     out = []
-    for idx_set, c_area, x_avg, y_avg, s_avg, reti in itertools.izip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, scalar_avg, ret):
+    for idx_set, c_area, x_avg, y_avg, s_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, scalar_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         x_flucts, y_flucts = math.vec_flucts(
             [x_vals[j] for j in idx_i],
@@ -292,7 +292,7 @@ def geostrophic_wind(gradp, rho, lat, u_g, v_g):
     bound = 10 * np.pi / 180
     #pick cells where lat is not too close to equator
     latcrit = np.all([np.greater_equal(lat, bound), np.less_equal(lat, -bound)], 0)
-    for crit, iu, iv, irho_f, ip in itertools.izip(latcrit, u_g, v_g, rho_f, gradp):
+    for crit, iu, iv, irho_f, ip in zip(latcrit, u_g, v_g, rho_f, gradp):
         iu[:,] = np.divide(ip[0, :,], irho_f[:, ]) * (-1)
         iv[:,] = np.divide(ip[1, :,], irho_f[:, ])
 
@@ -324,7 +324,7 @@ def geostrophic_wind_2(theta, grad_ex, lat, u_g, v_g):
     c_p = 1004.64
     #pick cells where lat is not too close to equator
     latcrit = np.any([np.greater_equal(lat, bound), np.less_equal(lat, -bound)], 0)
-    for crit, iu, iv, iex, ithet, fi in itertools.izip(latcrit, u_g, v_g, grad_ex, theta, f):
+    for crit, iu, iv, iex, ithet, fi in zip(latcrit, u_g, v_g, grad_ex, theta, f):
         if crit:
             c_f = c_p / fi
             iu[:,] = np.multiply(np.multiply(ithet[:,], iex[1,:, ]),((-1) * c_f))

@@ -32,7 +32,7 @@ def compute_coarse_gradient_nfo(coords, coarse_area, cell_area, cell_idx, grad_c
     ''' parallelized preparation of gradient computation
     '''
     i_gd = -1
-    for cidx, corea_i, cerea_i, g_coord_i, i_idx_i, i_dist_i in itertools.izip(cell_idx, coarse_area, cell_area, grad_coords, int_idx, int_dist):
+    for cidx, corea_i, cerea_i, g_coord_i, i_idx_i, i_dist_i in zip(cell_idx, coarse_area, cell_area, grad_coords, int_idx, int_dist):
         i_gd += 1
         c_coord = coords[cidx]
         # compute gradient coordinates
@@ -62,7 +62,7 @@ def compute_fine_gradient_nfo(coords, cell_area, cell_idx, grad_coords, grad_dis
     ''' parallelized preparation of gradient computation
     '''
     i_gd = -1
-    for cidx, cerea_i, g_coord_i, i_idx_i, i_dist_i in itertools.izip(cell_idx, cell_area, grad_coords, int_idx, int_dist):
+    for cidx, cerea_i, g_coord_i, i_idx_i, i_dist_i in zip(cell_idx, cell_area, grad_coords, int_idx, int_dist):
         i_gd += 1
         c_coord = coords[cidx]
         # compute gradient coordinates
@@ -289,7 +289,7 @@ def check_bounds(coords, bounds):
 def vector_gradient(x, y, idx, grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
     ''' computes the gradient of a vector (x,y)
     '''
-    for idx_i, gc_i, gd_i, imi_i, id_i, grad_i in itertools.izip(idx, grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
+    for idx_i, gc_i, gd_i, imi_i, id_i, grad_i in zip(idx, grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
         # interpolation of values onto grad_coords[i][j] (E,W,N,S)
         U_vals = [] # (E, W, N, S)
         V_vals = []
@@ -343,7 +343,7 @@ def vector_gradient(x, y, idx, grad_coords, grad_dist, int_mem_idx, int_dist, gr
 def scalar_gradient(x, grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
     ''' computes the gradient of a scalar
     '''
-    for gc_i, gd_i, imi_i, id_i, grad_i in itertools.izip(grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
+    for gc_i, gd_i, imi_i, id_i, grad_i in zip(grad_coords, grad_dist, int_mem_idx, int_dist, gradient):
         # interpolation of values onto grad_coords[i][j] (N,S,E,W)
         X_vals = [] # (N, S, E, W)
         for j in range(4):
@@ -375,7 +375,7 @@ def convert_rad_m(dist):
 def clean_indices_new(idx, dist):
     idx_out = []
     dist_out = []
-    for idx_i, dist_i in itertools.izip(idx, dist):
+    for idx_i, dist_i in zip(idx, dist):
         if (idx_i > -1) and np.all(np.less(dist_i, 10000.0)):
             idx_out.append(idx_i)
             dist_out.append(dist_i)
@@ -388,7 +388,7 @@ def clean_indices(idx):
 
 def clean_values_new(lst, check):
     out = []
-    for lst_i, check_i in itertools.izip(lst, check):
+    for lst_i, check_i in zip(lst, check):
         if check_i > -1:
             out.append(lst_i)
     return np.array(out)

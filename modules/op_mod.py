@@ -54,7 +54,7 @@ class Operations(object):
         lg_coords = self.IO.load_from('grid', 'local_grad_coords')
         lg_rads = self.IO.load_from('grid', 'local_grad_dist')
         self.lg_coords_rads = [
-            [[gci, gri] for gci, gri in itertools.izip(gc, gr)] for gc, gr in itertools.izip(
+            [[gci, gri] for gci, gri in zip(gc, gr)] for gc, gr in zip(
                 lg_coords, lg_rads
             )]
 
