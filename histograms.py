@@ -2,6 +2,7 @@
 # coding=utf-8
 
 import os
+import sys
 import glob
 import numpy as np
 import matplotlib
@@ -128,7 +129,19 @@ class Run(object):
         self.IO = cio.IOcontroller(self.path, data=self.file, out=False)
         self.vars = args.vars
         self.lev=args.lev
+        if isinstance(args.lev_start, int) and isinstance(args.lev_end, int):
+            self.lev_range=[args.lev_start, args.lev_end]
+            if not args.lev_start < args.lev_end:
+                sys.exit('invalid level range: {}').format(args.lev_range)
+        else:
+            self.lev_range=None
         self.time=args.time
+        if isinstance(args.time_start, int) and isinstance(args.time_end, int):
+            self.time_range=[args.time_start, args.time_end]
+            if not args.time_start < args.time_end:
+                sys.exit('invalid time range: {}').format(args.time_range)
+        else:
+            self.time_range=None
     def run(self):
         for var in self.vars:
             if not self.IO.isin('data', var):
@@ -150,9 +163,17 @@ class Run(object):
             xlabel=r'$\tilde \epsilon _M\ [J/s\ 1/m^3]$'
             what=r'\tilde \epsilon _M'
         elif var == 'INT_TRANS':
-            ylabel=r'$log(P(\tilde \sigma _T$))'
+            ylabel=r'$log(P(\tilde \epsilon _T$))'
             xlabel=r'$\tilde \epsilon _T\ [J/s\ 1/m^3]$'
             what=r'\tilde \epsilon _T'
+        elif var == 'T_FRIC':
+            ylabel=r'$log(P(\tilde \sigma _M$))'
+            xlabel=r'$\tilde \sigma _M\ [J/s\ 1/m^3]$'
+            what=r'\tilde \sigma _M'
+        elif var == 'INT_TRANS':
+            ylabel=r'$log(P(\tilde \sigma _T$))'
+            xlabel=r'$\tilde \sigma _T\ [J/s\ 1/m^3]$'
+            what=r'\tilde \sigma _T'
         else:
             ylabel=r'$log(P({}))$'.format(var)
             xlabel=r'${}$'.format(var)
@@ -173,7 +194,7 @@ class Run(object):
         # get max/min & total number of values, consecutively for data files
         for xfile in self.IO.datafiles:
             # load
-            data = self.IO.load(xfile, var, self.time, self.lev)
+            data = self.IO.load(xfile, var, self.time, self.lev, self.time_range, self.lev_range)
             int_min, int_max, dat_num = self.bin_min_max_num(data)
             del data
             # compare with prev values
@@ -197,7 +218,7 @@ class Run(object):
         total_histogram = np.zeros(len(self.bins)-1)
         # sequentially evaluate datasets
         for xfile in self.IO.datafiles:
-            data = self.IO.load(xfile, var, self.time, self.lev)
+            data = self.IO.load(xfile, var, self.time, self.lev, self.time_range, self.lev_range)
             # compute histogram from data using precomputed bins
             int_hist = np.histogram(data, bins=self.bins, density=False)[0]
             del data
@@ -214,7 +235,7 @@ class Run(object):
         num = 0
         mean = 0
         for xfile in self.IO.datafiles:
-            data = self.IO.load(xfile, var, self.time, self.lev)
+            data = self.IO.load(xfile, var, self.time, self.lev, self.time_range, self.lev_range)
             num += data.size
             mean += np.sum(data)
             del data
@@ -224,7 +245,7 @@ class Run(object):
         num = 0
         std = 0
         for xfile in self.IO.datafiles:
-            data =  self.IO.load(xfile, var, self.time, self.lev)
+            data = self.IO.load(xfile, var, self.time, self.lev, self.time_range, self.lev_range)
             num += np.size(data)
             std += np.sum(np.square(np.subtract(data, mean)))
             del data
@@ -269,11 +290,15 @@ class Run(object):
         oname = var
         if self.lev:
             oname = oname + '_l{}'.format(self.lev)
+        elif not self.lev_range == None:
+            oname = oname + '_l{}-{}'.format(self.lev_range[0], self.lev_range[1])
         else:
             pass
 
         if not self.time==None:
             oname = oname + '_t{}'.format(self.time)
+        elif not self.time_range == None:
+            oname = oname + '_t{}-{}'.format(self.time_range[0], self.time_range[1])
         else:
             pass
 
@@ -303,11 +328,39 @@ if __name__ == '__main__':
         help = 'level to be investigated',
     )
     parser.add_argument(
+        '-ls',
+        dest = 'lev_start',
+        default = None,
+        type = int,
+        help = 'start of level range to be investigated',
+    )
+    parser.add_argument(
+        '-le',
+        dest = 'lev_end',
+        default = None,
+        type = int,
+        help = 'end of level range to be investigated',
+    )
+    parser.add_argument(
         '-t',
         dest = 'time',
         default = None,
         type = int,
         help = 'time to be investigated',
+    )
+    parser.add_argument(
+        '-ts',
+        dest = 'time_start',
+        default = None,
+        type = int,
+        help = 'start of time range to be investigated',
+    )
+    parser.add_argument(
+        '-te',
+        dest = 'time_end',
+        default = None,
+        type = int,
+        help = 'end of time range to be investigated',
     )
     parser.add_argument(
         '-v',

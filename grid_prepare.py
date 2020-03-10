@@ -104,7 +104,7 @@ class Grid_Preparator(object):
         grad.compute_coarse_gradient_nfo(
             coords, coarse_area, cell_area, cell_idx, #input
             grad_coords, grad_dist, int_index, int_dist #output
-        )   
+        )
         print(np.min(int_dist))
         print(np.max(int_dist))
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
         path.join(args.path_to_file[0], new_name)
     )
     gmp.set_parallel_proc(True)
-    gmp.set_num_procs(12)
+    gmp.set_num_procs(14)
     print(new_name)
     GP = Grid_Preparator(args.path_to_file[0], new_name, args.num_rings[0])
   #  GP.compute_l_gradient_nfo()

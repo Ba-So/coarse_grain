@@ -110,7 +110,7 @@ class IOcontroller(object):
 
         return data
 
-    def load(self, xfile, var, time=None, lev=None):
+    def load(self, xfile, var, time=None, lev=None, time_range=None, lev_range=None):
         if not xfile in self.datafiles:
             sys.exit('xfile not in my filelist: {}'.format(xfile))
         with Dataset(os.path.join(self.experiment_path, xfile), 'r') as xdata:
@@ -128,6 +128,18 @@ class IOcontroller(object):
             data = data[:, :, lev]
         elif time:
             data = data[:, time, :]
+        elif time_range and lev_range:
+            data = data[:, time_range[0]:time_range[1], lev_range[0]:lev_range[1]]
+        elif time_range:
+            if lev:
+                data = data[:, time_range[0]:time_range[1], lev]
+            else:
+                data = data[:, time_range[0]:time_range[1], :]
+        elif lev_range:
+            if time:
+                data = data[:, time, lev_range[0]:lev_range[1]]
+            else:
+                data = data[:, :, lev_range[0]:lev_range[1]]
         return data
 
     def load_all_data(self, var):
