@@ -126,6 +126,7 @@ class Run(object):
     def __init__(self, args):
         self.path = args.path
         self.file = args.file
+        self.out_path = args.out_path
         self.IO = cio.IOcontroller(self.path, data=self.file, out=False)
         self.vars = args.vars
         self.lev=args.lev
@@ -160,19 +161,19 @@ class Run(object):
     def getlabels(self, var):
         if var == 'KIN_TRANS':
             ylabel=r'$log(P(\tilde \epsilon _M$))'
-            xlabel=r'$\tilde \epsilon _M\ [J/s\ 1/m^3]$'
+            xlabel=r'$\tilde \epsilon _M\ [J\ s^{-1}\ m^{-3}]$'
             what=r'\tilde \epsilon _M'
         elif var == 'INT_TRANS':
             ylabel=r'$log(P(\tilde \epsilon _T$))'
-            xlabel=r'$\tilde \epsilon _T\ [J/s\ 1/m^3]$'
+            xlabel=r'$\tilde \epsilon _T\ [J\ s^{-1}\ m^{-3}]$'
             what=r'\tilde \epsilon _T'
         elif var == 'T_FRIC':
             ylabel=r'$log(P(\tilde \sigma _M$))'
-            xlabel=r'$\tilde \sigma _M\ [J/s\ 1/m^3]$'
+            xlabel=r'$\tilde \sigma _M\ [J\ s^{-1}\ m^{-3}]$'
             what=r'\tilde \sigma _M'
         elif var == 'INT_TRANS':
             ylabel=r'$log(P(\tilde \sigma _T$))'
-            xlabel=r'$\tilde \sigma _T\ [J/s\ 1/m^3]$'
+            xlabel=r'$\tilde \sigma _T\ [J\ s^{-1}\ m^{-3}]$'
             what=r'\tilde \sigma _T'
         else:
             ylabel=r'$log(P({}))$'.format(var)
@@ -302,7 +303,7 @@ class Run(object):
         else:
             pass
 
-        plt.savefig('bilder/histogramm_{}'.format(oname),dpi=73,format='eps')
+        plt.savefig(os.path.join(self.out_path,'histogram_{}.eps'.format(oname)),dpi=73,format='eps')
         plt.show()
         plt.close()
 
@@ -313,6 +314,13 @@ if __name__ == '__main__':
         dest = 'path',
         type = str,
         help='a string specifying the path to experiment'
+    )
+    parser.add_argument(
+        '-op',
+        dest = 'out_path',
+        default = ''
+        type = str,
+        help='a string specifying the output path of figures'
     )
     parser.add_argument(
         '-f',
