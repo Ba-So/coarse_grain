@@ -122,24 +122,35 @@ class IOcontroller(object):
         # switch rows, so ncell is in front
         data = np.moveaxis(data, -1, 0)
         # in case only specific times or level are to be investigated
-        if lev and time:
-            data = data[:, time, lev]
-        elif lev:
-            data = data[:, :, lev]
-        elif time:
-            data = data[:, time, :]
-        elif time_range and lev_range:
+
+        if time_range and lev_range:
+            print('loading using time_range {} and lev {}'.format(time, lev))
             data = data[:, time_range[0]:time_range[1], lev_range[0]:lev_range[1]]
         elif time_range:
+            print('loading using time_range {}'.format(time_range))
             if lev:
+                print('and lev {}'.format(lev))
                 data = data[:, time_range[0]:time_range[1], lev]
             else:
                 data = data[:, time_range[0]:time_range[1], :]
         elif lev_range:
+            print('loading using lev_range {}'.format(lev_range))
             if time:
+                print('and time {}'.format(time))
                 data = data[:, time, lev_range[0]:lev_range[1]]
             else:
                 data = data[:, :, lev_range[0]:lev_range[1]]
+        elif lev and time:
+            print('loading using time {} and lev {}'.format(time, lev))
+            data = data[:, time, lev]
+        elif lev:
+            print('loading using lev {}'.format(lev))
+            data = data[:, :, lev]
+        elif time:
+            print('loading using time {}'.format(time))
+            data = data[:, time, :]
+        else:
+            print('weird shit happened')
         return data
 
     def load_all_data(self, var):
