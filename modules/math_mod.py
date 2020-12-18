@@ -145,6 +145,7 @@ def scalar_flucts(xdata, xavgdata):
 #@TimeThis
 def dist_avg_vec(x_values, y_values, grid_nfo):
     '''
+    Depreceated: Superseeded by lst_sq_intp_vec.
     does distance weighted average of values within a circular area on a sphere.
     needs:  coordinates of center, indices of area members,
             distances of members from center,
@@ -186,7 +187,8 @@ def lst_sq_intp_vec(x_values, y_values, c_coord, mem_dist):
 # TODO: scrub data structures out of there.
 #@TimeThis
 def dist_avg_scalar(x_values, grid_nfo):
-    '''computes the distance averaged value of a set of scalar values
+    '''Depreceated: lst_sq_intp has superseeded this.
+        computes the distance averaged value of a set of scalar values
         Input: x_values[]
 
     '''
