@@ -245,7 +245,10 @@ def lst_sq_intp(x_values, c_coord, distances):
     return [u, x_values[0][1], [lon_c, lat_c]]
 
 def triangle_b_from_ac(a,c):
-    ''' requires c in radians returns b in m '''
+    ''' Depreceated: unclear what it does,
+        Probably computing the sides of a triangle on a sphere.
+        -> check Bornstein for clarification.
+        requires c in radians returns b in m '''
     np.seterr(all='raise')
     r_e = 6.37111*10**6
     z = np.cos(c) / np.cos(a)
@@ -261,7 +264,12 @@ def triangle_b_from_ac(a,c):
 
 def central_diff(xr, xl, d):
     ''' little routine, which computes the
-    central difference between two values with distance 2 * d'''
+    central difference between two values with distance 2 * d
+    use this to avoid accidental division by zero, when computing the gradients.
+    The use of this has to do mainly with the missing gnomonic projection in
+    the zonal component of the gradients,
+    ever smaller circles -> ever smaller distance -> division by zero.
+    '''
     diff = np.zeros(np.shape(xr))
     epsilon = 500
     if d > 0 + epsilon :
@@ -269,13 +277,13 @@ def central_diff(xr, xl, d):
     return diff
 
 def radius(area):
-    '''returns radius of circle on sphere in rad'''
+    '''returns radius of circular area on sphere in rad'''
     r_e = 6.37111*10**6
     r = np.sqrt(area / np.pi) / r_e
     return r
 
 def radius_m(area):
-    '''returns radius of circle on sphere in rad'''
+    '''returns radius of circlular area on sphere in rad'''
     r_e = 6.37111*10**6
     r = np.sqrt(area / np.pi)
     return r
@@ -283,15 +291,21 @@ def radius_m(area):
 def get_polar(lon, lat):
     ''' gets the coordinates of a shifted pole, such that
     the given coordinate pair falls onto the equator
-    of a transformed lat lon grid'''
-
+    of a transformed lat lon grid
+    '''
+    #Shift latitude by 90 degrees.
     plat = lat + np.pi/2
+    #Keep longditude
     plon = lon
+    #Check if we have shifted beyond the north pole
     if plat > np.pi/2 :
+        # if yes shift the pole over the north pole
         plat = np.pi - plat
+        # ... and move the longditude to the opposite
         plon = plon + np.pi
+    # check if the longditude is shifted beyond the meridian
     if plon > np.pi:
-        # move pole to the opposite side of earth.
+        # and correct
         plon = plon - 2 * np.pi
 
     return plon, plat
@@ -324,7 +338,11 @@ def rotate_vec_to_local(plon, plat, x, y):
     return x_tnd, y_tnd
 
 def rotate_vec_to_global(plon, plat, x, y):
-    '''x, y are assumed to be datapoints of the shape:
+    '''Unused: since lat's und lon's are always orthogonal,
+        the values at the center of the rotation are always unchanged.
+        The return rotation is thus superflous computations.
+        ---
+        x, y are assumed to be datapoints of the shape:
         [data, cell_area, [lon, lat]]
         returns the data shape
         with data changed according to turn
