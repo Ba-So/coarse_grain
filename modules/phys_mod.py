@@ -62,6 +62,8 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx
         constituents = np.array([[x[0] for x in x_tnd], [y[0] for y in y_tnd]])
         cell_area = np.array([x[1] for x in x_set])
         # set up uv matrix
+            # i, j refers to the first and second components of the vector
+            # l refers to the corase-cell members, m and k are level and time
         fluc_tens = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)
         # average over coarse_area
         fluc_tens = np.einsum(
