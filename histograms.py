@@ -77,7 +77,7 @@ def plot_histogram_2(data, name, lev=None, time=None):
     else:
         pass
 
-    plt.savefig('bilder/histogram_{}'.format(oname),dpi=73)
+    plt.savefig('bilder/histogram_{}.svg'.format(oname),format=svg,dpi=1200)
     plt.show()
 
 def plot_timeline(data, name):
@@ -129,21 +129,33 @@ class Run(object):
         self.out_path = args.out_path
         self.IO = cio.IOcontroller(self.path, data=self.file, out=False)
         self.vars = args.vars
-        self.lev=args.lev
+        if isinstance(args.lev, int):
+            self.lev=args.lev
+        else:
+            self.lev=None
+
         if isinstance(args.lev_start, int) and isinstance(args.lev_end, int):
             self.lev_range=[args.lev_start, args.lev_end]
             if not args.lev_start < args.lev_end:
                 sys.exit('invalid level range: {}').format(args.lev_range)
         else:
             self.lev_range=None
-        self.time=args.time
+
+        if isinstance(args.time, int):
+            self.time=args.time
+        else:
+            self.time=None
+
         if isinstance(args.time_start, int) and isinstance(args.time_end, int):
             self.time_range=[args.time_start, args.time_end]
             if not args.time_start < args.time_end:
                 sys.exit('invalid time range: {}').format(args.time_range)
         else:
             self.time_range=None
+
     def run(self):
+        print('time {} \n time_range {}'.format(self.time, self.time_range))
+        print('lev {} \n lev_range {}'.format(self.lev, self.lev_range))
         for var in self.vars:
             if not self.IO.isin('data', var):
                 print('{} not found in dataset'.format(var))
@@ -291,19 +303,19 @@ class Run(object):
         oname = var
         if self.lev:
             oname = oname + '_l{}'.format(self.lev)
-        elif not self.lev_range == None:
+        elif self.lev_range:
             oname = oname + '_l{}-{}'.format(self.lev_range[0], self.lev_range[1])
         else:
             pass
 
-        if not self.time==None:
+        if self.time:
             oname = oname + '_t{}'.format(self.time)
-        elif not self.time_range == None:
+        elif self.time_range:
             oname = oname + '_t{}-{}'.format(self.time_range[0], self.time_range[1])
         else:
             pass
 
-        plt.savefig(os.path.join(self.out_path,'histogram_{}.eps'.format(oname)),dpi=73,format='eps')
+        plt.savefig(os.path.join(self.out_path,'histogram_{}.svg'.format(oname)),dpi=1200,format='svg')
         plt.show()
         plt.close()
 
@@ -318,7 +330,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '-op',
         dest = 'out_path',
-        default = ''
+        default = '',
         type = str,
         help='a string specifying the output path of figures'
     )
