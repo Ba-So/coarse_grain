@@ -58,7 +58,12 @@ def compute_coarse_gradient_nfo(coords, coarse_area, cell_area, cell_idx, grad_c
 })
 @ParallelNpArray(gmp)
 def compute_fine_gradient_nfo(coords, cell_area, cell_idx, grad_coords, grad_dist, int_idx, int_dist):
-    ''' parallelized preparation of gradient computation
+    '''
+    Unused and Nonsense.
+    The local gradients of a cell are much better computed by using
+    the least squares interpolation of neighbouring cells onto the central cells.
+    the thought process originated in the coarse_gradient computation.
+    parallelized preparation of gradient computation
     '''
     i_gd = -1
     for cidx, cerea_i, g_coord_i, i_idx_i, i_dist_i in zip(cell_idx, cell_area, grad_coords, int_idx, int_dist):
