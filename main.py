@@ -298,15 +298,15 @@ class Operations(object):
                             'grid_type' : 'unstructured'
                             }, filenum=filenum
                         )
-        t_nstpy_kd = phys.turb_fric_erich(t_nstpy)
-        self.IO.write_to('results', t_nstpy_kd, name=(outname+'_KD'),
-                        attrs={
-                            'long_name' : 'turbulent_enstrophy_flux in kd',
-                            'coordinates': 'vlat vlon',
-                            '_FillValue' : float('nan'),
-                            'grid_type' : 'unstructured'
-                            }, filenum=filenum
-                        )
+#       t_nstpy_kd = phys.turb_fric_erich(t_nstpy)
+#       self.IO.write_to('results', t_nstpy_kd, name=(outname+'_KD'),
+#                       attrs={
+#                           'long_name' : 'turbulent_enstrophy_flux in kd',
+#                           'coordinates': 'vlat vlon',
+#                           '_FillValue' : float('nan'),
+#                           'grid_type' : 'unstructured'
+#                           }, filenum=filenum
+#                       )
         return t_nstpy
 
     def friction_coefficient(self, gradxy, t_fric, numfile=0, outname='K_TURB'):
