@@ -185,40 +185,40 @@ class Operations(object):
         varshape.insert(1, 2)
         rhoxy = self.create_array(varshape)
         print('computing the rhoxy values ...')
-        phys.compute_dyad(
+        phys.compute_stress_re(
             x, y, rho,
             x_avg, y_avg, rho_bar,
             self.c_mem_idx, self.c_area,
             rhoxy
         )
         if debug:
-            self.IO.write_to('data', rhoxy[:,0,0,:,:], name='TAU11',
+            self.IO.write_to('data', rhoxy[:,0,0,:,:], name='TAU_RE11',
                             attrs={
-                                'long_name': 'tau 11',
+                                'long_name': 'horiz. Reynolds Stress Tensor 11',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
                                 'grid_type' : 'unstructured'
                                 }, filenum=numfile
                             )
-            self.IO.write_to('data', rhoxy[:,0,1,:,:], name='TAU12',
+            self.IO.write_to('data', rhoxy[:,0,1,:,:], name='TAU_RE12',
                             attrs={
-                                'long_name': 'tau 12',
+                                'long_name': 'horiz. Reynolds Stress Tensor 12',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
                                 'grid_type' : 'unstructured'
                                 }, filenum=numfile
                             )
-            self.IO.write_to('data', rhoxy[:,1,0,:,:], name='TAU21',
+            self.IO.write_to('data', rhoxy[:,1,0,:,:], name='TAU_RE21',
                             attrs={
-                                'long_name': 'tau 21',
+                                'long_name': 'horiz. Reynolds Stress Tensor 21',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
                                 'grid_type' : 'unstructured'
                                 }, filenum=numfile
                             )
-            self.IO.write_to('data', rhoxy[:,1,1,:,:], name='TAU22',
+            self.IO.write_to('data', rhoxy[:,1,1,:,:], name='TAU_RE22',
                             attrs={
-                                'long_name': 'tau 22',
+                                'long_name': 'horiz. Reynolds Stress Tensor 22',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
                                 'grid_type' : 'unstructured'
