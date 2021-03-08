@@ -177,7 +177,6 @@ class Operations(object):
         x_avg = self.IO.load_from('newdata', xavg, numfile)
         y_avg = self.IO.load_from('newdata', yavg, numfile)
         rho = self.IO.load_from('data', 'RHO', numfile)
-        rho_bar = self.IO.load_from('newdata', 'RHO_BAR', numfile)
         x = self.nfo_merge(x)
         y = self.nfo_merge(y)
         varshape = list(np.shape(x_avg))
@@ -185,9 +184,9 @@ class Operations(object):
         varshape.insert(1, 2)
         rhoxy = self.create_array(varshape)
         print('computing the rhoxy values ...')
-        phys.compute_stress_re(
+        phys.compute_dyad_Rey(
             x, y, rho,
-            x_avg, y_avg, rho_bar,
+            x_avg, y_avg, rho,
             self.c_mem_idx, self.c_area,
             rhoxy
         )
