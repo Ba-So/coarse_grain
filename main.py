@@ -169,6 +169,63 @@ class Operations(object):
                             )
         return rhoxy
 
+    def rhoxy_averages_re(self, xname, yname, xavg, yavg, numfile=0):
+        '''Reynolds Stress Tensor computation'''
+        debug = False
+        x = self.IO.load_from('data', xname, numfile)
+        y = self.IO.load_from('data', yname, numfile)
+        x_avg = self.IO.load_from('newdata', xavg, numfile)
+        y_avg = self.IO.load_from('newdata', yavg, numfile)
+        rho = self.IO.load_from('data', 'RHO', numfile)
+        rho_bar = self.IO.load_from('newdata', 'RHO_BAR', numfile)
+        x = self.nfo_merge(x)
+        y = self.nfo_merge(y)
+        varshape = list(np.shape(x_avg))
+        varshape.insert(1, 2)
+        varshape.insert(1, 2)
+        rhoxy = self.create_array(varshape)
+        print('computing the rhoxy values ...')
+        phys.compute_dyad(
+            x, y, rho,
+            x_avg, y_avg, rho_bar,
+            self.c_mem_idx, self.c_area,
+            rhoxy
+        )
+        if debug:
+            self.IO.write_to('data', rhoxy[:,0,0,:,:], name='TAU11',
+                            attrs={
+                                'long_name': 'tau 11',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=numfile
+                            )
+            self.IO.write_to('data', rhoxy[:,0,1,:,:], name='TAU12',
+                            attrs={
+                                'long_name': 'tau 12',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=numfile
+                            )
+            self.IO.write_to('data', rhoxy[:,1,0,:,:], name='TAU21',
+                            attrs={
+                                'long_name': 'tau 21',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=numfile
+                            )
+            self.IO.write_to('data', rhoxy[:,1,1,:,:], name='TAU22',
+                            attrs={
+                                'long_name': 'tau 22',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=numfile
+                            )
+        return rhoxy
+
     def rhoxy_averages_scalar(self, xname, yname, sname, xavg, yavg, savg, numfile=0):
         x = self.IO.load_from('data', xname, numfile)
         y = self.IO.load_from('data', yname, numfile)
@@ -729,7 +786,7 @@ class CoarseGrain(Operations):
             print('loading UVgrads now')
             UV_gradients = self.load_grads(filenum)
             print('preparing Reynolds fluct dyad')
-            rhouv_flucts = self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
+            rhouv_flucts = self.rhoxy_averages_re('U', 'V', 'U_HAT', 'V_HAT', filenum)
             print('computing the rates')
             self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
             del rhouv_flucts
