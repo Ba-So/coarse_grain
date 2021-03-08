@@ -255,7 +255,7 @@ class Operations(object):
 
     def turbulent_shear_prod(self, rhoxy, gradxy, filenum=0, outname='KIN_TRANS'):
         print('computing the turbulent shear production values ...')
-        if not(self.IO.check_for(['KIN_TRANS'], filenum)[0]):
+        if not(self.IO.check_for([outname], filenum)[0]):
             varshape = list(np.shape(rhoxy))
             varshape.pop(1)
             varshape.pop(1)
@@ -265,6 +265,42 @@ class Operations(object):
             self.IO.write_to('results', t_fric, name=outname,
                             attrs={
                                 'long_name' : 'kinetic energy transfer rates',
+                                'units' : 'J/s',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=filenum
+                            )
+        return
+
+    def turbulent_shear_prod_iso(self, rhoxy, gradxy, filenum=0, outname='KITRA'):
+        '''assumes the full shear tensor hand-in!'''
+        print('computing the turbulent shear production values ...')
+        if not(self.IO.check_for([outname], filenum)[0]):
+            varshape = list(np.shape(rhoxy))
+            varshape.pop(1)
+            varshape.pop(1)
+            t_fric = self.create_array(varshape)
+            phys.turb_fric(rhoxy, gradxy, t_fric)
+            print('saving iso+aniso to file ...')
+            self.IO.write_to('results', t_fric, name=outname,
+                            attrs={
+                                'long_name' : 'full reynolds kinetic energy transfer rates',
+                                'units' : 'J/s',
+                                'coordinates': 'vlat vlon',
+                                '_FillValue' : float('nan'),
+                                'grid_type' : 'unstructured'
+                                }, filenum=filenum
+                            )
+            del t_fric
+            t_fric_iso = self.create_array(varshape)
+            trace = 0.5* np.add(rhoxy[0,0,:], rhoxy[0,0,:])
+            for i in range(2):
+                rhoxy[i,i,:] = np.subtract(rhoxy[i,i,:], trace)
+            phys.turb_fric(rhoxy, gradxy, t_fric_iso)
+            self.IO.write_to('results', t_fric, name=outname+'_I',
+                            attrs={
+                                'long_name' : 'isotropic reynolds kinetic energy transfer rates',
                                 'units' : 'J/s',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
@@ -787,7 +823,7 @@ class CoarseGrain(Operations):
             print('preparing Reynolds fluct dyad')
             rhouv_flucts = self.rhoxy_averages_re('U', 'V', 'U_HAT', 'V_HAT', filenum)
             print('computing the rates')
-            self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
+            self.turbulent_shear_prod_iso(rhouv_flucts, UV_gradients, outname='KITRA_RE')
             del rhouv_flucts
             print('done')
 
