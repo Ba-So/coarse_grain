@@ -36,8 +36,14 @@ def compute_dyad_Rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coa
             cell_area,
             rho_set
         )
-        #normalize:
-        reti[:,] = np.divide(dyad, c_area)
+        #normalize: out_tens = np.multiply(out_tens, (-1))
+        out_tens = np.divide(dyad, c_area)
+        #subtract anisotropic part
+       # trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
+       # for i in range(2):
+       #     out_tens[i,i,:] = np.subtract(out_tens[i,i,:], trace)
+        out_tens = np.multiply(out_tens, (-1))
+        reti[:,] = out_tens[:]
 
 
 @TimeThis
