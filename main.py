@@ -717,6 +717,24 @@ class CoarseGrain(Operations):
             del rhouv_flucts
             print('done')
 
+    def exec_kine_transfer_re(self):
+        print('computing turbulent transfer rates, through Reynolds Stress only.')
+        print('***')
+        for filenum, file in enumerate(self.IO.datafiles):
+            print('processing file number {}/{}'.format(filenum + 1, len(self.IO.datafiles)))
+            if not(self.IO.check_for(['U_HAT', 'V_HAT', 'DVX', 'DUX', 'DVY', 'DVX'], filenum)[0]):
+                print('preparing winds')
+                self.prepare_winds(filenum)
+                print('***')
+            print('loading UVgrads now')
+            UV_gradients = self.load_grads(filenum)
+            print('preparing Reynolds fluct dyad')
+            rhouv_flucts = self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
+            print('computing the rates')
+            self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
+            del rhouv_flucts
+            print('done')
+
     def exec_heat_transfer(self):
         print('computing turbulent heat transfer rates')
         print('***')
