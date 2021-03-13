@@ -11,13 +11,13 @@ import modules.math_mod as math
 @TimeThis
 @requires({
     'full': ['x_vals', 'y_vals', 'rho'],
-    'slice': ['x_avg_list', 'y_avg_list', 'c_mem_idx', 'coarse_area', 'ret']
+    'slice': ['x_avg_list', 'y_avg_list', 'rho_avg', 'c_mem_idx', 'coarse_area', 'ret']
 })
 @ParallelNpArray(gmp)
-def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coarse_area, ret):
+def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X') assuming the Reynolds postulates to be accurate'''
     out = []
-    for idx_set, c_area, x_avg, y_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, ret):
+    for idx_set, c_area, x_avg, y_avg, r_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         x_flucts, y_flucts = math.vec_flucts(
             [x_vals[j] for j in idx_i],
@@ -25,8 +25,11 @@ def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coa
             x_avg, y_avg
         )
         constituents = np.array([[x[0] for x in x_flucts], [y[0] for y in y_flucts]])
-        rho_set = np.array([rho[j] for j in idx_i])
         cell_area = np.array([x[1] for x in x_flucts])
+        del x_flucts, y_flucts
+        rho_flucts = math.scalar_flucts([rho[j] for j in idx_i], r_avg)
+        rho_set = np.array([x[0] for x in rho_flucts])
+        del rho_flucts
         # set up uv matrix
         product = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)
         # average over coarse_area
@@ -39,9 +42,9 @@ def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coa
         #normalize: out_tens = np.multiply(out_tens, (-1))
         out_tens = np.divide(dyad, c_area)
         #subtract anisotropic part
-        trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
-        for i in range(2):
-            out_tens[i,i,:] = np.subtract(out_tens[i,i,:], trace)
+        # trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
+        #for i in range(2):
+        #    out_tens[i,i,:] = np.subtract(out_tens[i,i,:], trace)
         out_tens = np.multiply(out_tens, (-1))
         reti[:,] = out_tens[:]
 
@@ -54,23 +57,25 @@ def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, c_mem_idx, coa
 @ParallelNpArray(gmp)
 def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X') without relying on the Reynolds postulates'''
-    out = []
     for idx_set, c_area, x_avg, y_avg, rhoi, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         x_set = [x_vals[j] for j in idx_i]
         y_set = [y_vals[j] for j in idx_i]
+        cell_area = np.array([x[1] for x in x_set])
         rho_set = np.array([rho[j] for j in idx_i])
         plon, plat = math.get_polar(x_set[0][2][0], x_set[0][2][1])
         x_tnd, y_tnd = math.rotate_multiple_to_local(
             plon, plat,
             x_set, y_set
         )
+        del x_set, y_set, plon, plat
         constituents = np.array([[x[0] for x in x_tnd], [y[0] for y in y_tnd]])
-        cell_area = np.array([x[1] for x in x_set])
+        del x_tnd, y_tnd
         # set up uv matrix
             # i, j refers to the first and second components of the vector
             # l refers to the corase-cell members, m and k are level and time
         fine_tens = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)
+        del constituents
         # average over coarse_area
         fine_tens = np.einsum(
             'ijlmk,l,lmk->ijmk',
@@ -78,11 +83,13 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx
             cell_area,
             rho_set
         )
-        #normalize:
+        del rho_set, cell_area
         fine_tens = np.divide(fine_tens, c_area)
+        # coarse tensor
         avg_vec = np.array([x_avg, y_avg])
         avg_tens = np.einsum('imk,jmk,mk->ijmk', avg_vec, avg_vec, rhoi)
         out_tens = np.subtract(fine_tens, avg_tens)
+        # isolate isotropic part
         trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
         for i in range(2):
             out_tens[i,i,:] = np.subtract(out_tens[i,i,:], trace)
@@ -100,7 +107,6 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx
 @ParallelNpArray(gmp)
 def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho_avg, scalar_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X'), without application of Reynolds assumption'''
-    out = []
     for idx_set, c_area, x_avg, y_avg, r_avg, s_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, scalar_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         # retrieve "fine" variables
@@ -139,13 +145,12 @@ def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho
 @TimeThis
 @requires({
     'full': ['x_vals', 'y_vals', 'rho', 'scalar'],
-    'slice': ['x_avg_list', 'y_avg_list', 'scalar_avg', 'c_mem_idx', 'coarse_area', 'ret']
+    'slice': ['x_avg_list', 'y_avg_list', 'rho_avg', 'scalar_avg', 'c_mem_idx', 'coarse_area', 'ret']
 })
 @ParallelNpArray(gmp)
-def compute_dyad_scalar_rey(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, scalar_avg, c_mem_idx, coarse_area, ret):
+def compute_dyad_scalar_rey(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho_avg, scalar_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X')'''
-    out = []
-    for idx_set, c_area, x_avg, y_avg, s_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, scalar_avg, ret):
+    for idx_set, c_area, x_avg, y_avg, r_avg, s_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, scalar_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         # computes the Reynolds assumption x'
         x_flucts, y_flucts = math.vec_flucts(
@@ -155,19 +160,19 @@ def compute_dyad_scalar_rey(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list,
         )
         # computes the Reynolds assumption x'
         scale_flucts = math.scalar_flucts([scalar[j] for j in idx_i], s_avg)
+        rho_flucts = math.scalar_flucts([rho[j] for j in idx_i], r_avg)
         constituents = np.array([[x[0] for x in x_flucts], [y[0] for y in y_flucts]])
         scales = np.array([x[0] for x in scale_flucts])
-        rho_set = np.array([rho[j] for j in idx_i])
+        rhos = np.array([x[0] for x in rho_flucts])
         cell_area = np.array([x[1] for x in x_flucts])
-        # set up uv matrix
-        product = np.einsum('ilmk,lmk->ilmk', constituents, scales)
+        del rho_flucts, scale_flucts, y_flucts, x_flucts
         # average over coarse_area
-        dyad = np.einsum(
-            'ilmk,l,lmk->imk',
-            product,
-            cell_area,
-            rho_set
-        )
+        dyad = np.einsum('ilmk,lmk,lmk,l->imk',
+                            constituents,
+                            scales,
+                            rhos,
+                            cell_area
+                            )
         #normalize:
         reti[:,] = np.divide(dyad, c_area)
 
