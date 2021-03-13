@@ -16,7 +16,6 @@ import modules.math_mod as math
 @ParallelNpArray(gmp)
 def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X') assuming the Reynolds postulates to be accurate'''
-    out = []
     for idx_set, c_area, x_avg, y_avg, r_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
         x_flucts, y_flucts = math.vec_flucts(
@@ -90,9 +89,9 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx
         avg_tens = np.einsum('imk,jmk,mk->ijmk', avg_vec, avg_vec, rhoi)
         out_tens = np.subtract(fine_tens, avg_tens)
         # isolate isotropic part
-        trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
-        for i in range(2):
-            out_tens[i,i,:] = np.subtract(out_tens[i,i,:], trace)
+        #trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
+        #for i in range(2):
+        #    out_tens[i,i,:] = np.subtract(out_tens[i,i,:], trace)
 
         out_tens = np.multiply(out_tens, (-1))
 
