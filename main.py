@@ -114,6 +114,7 @@ class Operations(object):
 
 
     def rhoxy_averages(self, xname, yname, xavg, yavg, numfile=0):
+        '''(compute tau(full), without reynolds assumption)'''
         debug = False
         x = self.IO.load_from('data', xname, numfile)
         y = self.IO.load_from('data', yname, numfile)
@@ -177,6 +178,7 @@ class Operations(object):
         x_avg = self.IO.load_from('newdata', xavg, numfile)
         y_avg = self.IO.load_from('newdata', yavg, numfile)
         rho = self.IO.load_from('data', 'RHO', numfile)
+        rho_bar = self.IO.load_from('newdata', 'RHO_BAR', numfile)
         x = self.nfo_merge(x)
         y = self.nfo_merge(y)
         varshape = list(np.shape(x_avg))
@@ -184,9 +186,9 @@ class Operations(object):
         varshape.insert(1, 2)
         rhoxy = self.create_array(varshape)
         print('computing the rhoxy values ...')
-        phys.compute_dyad_Rey(
+        phys.compute_dyad_rey(
             x, y, rho,
-            x_avg, y_avg, rho,
+            x_avg, y_avg, rho_bar,
             self.c_mem_idx, self.c_area,
             rhoxy
         )
@@ -293,7 +295,7 @@ class Operations(object):
             print('saving to file ...')
             self.IO.write_to('results', t_fric, name=outname,
                             attrs={
-                                'long_name' : 'kinetic energy transfer rates',
+                                'long_name' : 'full kinetic energy transfer rates',
                                 'units' : 'J/s',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
@@ -314,7 +316,7 @@ class Operations(object):
             print('saving iso+aniso to file ...')
             self.IO.write_to('results', t_fric, name=outname,
                             attrs={
-                                'long_name' : 'full reynolds kinetic energy transfer rates',
+                                'long_name' : 'full kinetic energy transfer rates',
                                 'units' : 'J/s',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
@@ -329,7 +331,7 @@ class Operations(object):
             phys.turb_fric(rhoxy, gradxy, t_fric_iso)
             self.IO.write_to('results', t_fric, name=outname+'_I',
                             attrs={
-                                'long_name' : 'isotropic reynolds kinetic energy transfer rates',
+                                'long_name' : 'isotropic kinetic energy transfer rates',
                                 'units' : 'J/s',
                                 'coordinates': 'vlat vlon',
                                 '_FillValue' : float('nan'),
