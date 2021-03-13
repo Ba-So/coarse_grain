@@ -227,7 +227,7 @@ class Operations(object):
                             )
         return rhoxy
 
-    def rhoxy_averages_scalar(self, xname, yname, sname, xavg, yavg, savg, numfile=0):
+    def rhoxy_averages_scalar(self, xname, yname, sname, xavg, yavg, ravg, savg, numfile=0):
         x = self.IO.load_from('data', xname, numfile)
         y = self.IO.load_from('data', yname, numfile)
         if self.IO.isin('data', sname, numfile):
@@ -238,6 +238,7 @@ class Operations(object):
             sys.exit('This was not supposed to happen.')
         x_avg = self.IO.load_from('newdata', xavg, numfile)
         y_avg = self.IO.load_from('newdata', yavg, numfile)
+        r_avg = self.IO.load_from('newdata', ravg, numfile)
         s_avg = self.IO.load_from('newdata', savg)
         rho = self.IO.load_from('data', 'RHO', numfile)
         x = self.nfo_merge(x)
@@ -249,13 +250,13 @@ class Operations(object):
         print('computing the rhoxy values ...')
         phys.compute_dyad_scalar(
             x, y, rho, s,
-            x_avg, y_avg, s_avg,
+            x_avg, y_avg, r_avg, s_avg,
             self.c_mem_idx, self.c_area,
             rhoxy
         )
         return rhoxy
 
-    def rhoxy_averages_scalar_re(self, xname, yname, sname, xavg, yavg, savg, numfile=0):
+    def rhoxy_averages_scalar_re(self, xname, yname, sname, xavg, yavg, ravg, savg, numfile=0):
         '''computing the rhoxy average, applying reynolds assumption'''
         x = self.IO.load_from('data', xname, numfile)
         y = self.IO.load_from('data', yname, numfile)
