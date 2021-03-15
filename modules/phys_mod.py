@@ -14,7 +14,7 @@ import modules.math_mod as math
     'slice': ['x_avg_list', 'y_avg_list', 'rho_avg', 'c_mem_idx', 'coarse_area', 'ret']
 })
 @ParallelNpArray(gmp)
-def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx, coarse_area, ret):
+def compute_dyad_re(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X') assuming the Reynolds postulates to be accurate'''
     for idx_set, c_area, x_avg, y_avg, r_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
@@ -154,7 +154,7 @@ def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho
     'slice': ['x_avg_list', 'y_avg_list', 'rho_avg', 'scalar_avg', 'c_mem_idx', 'coarse_area', 'ret']
 })
 @ParallelNpArray(gmp)
-def compute_dyad_scalar_rey(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho_avg, scalar_avg, c_mem_idx, coarse_area, ret):
+def compute_dyad_scalar_re(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho_avg, scalar_avg, c_mem_idx, coarse_area, ret):
     '''computes the dyadic product of avg(rho X'X')'''
     for idx_set, c_area, x_avg, y_avg, r_avg, s_avg, reti in zip(c_mem_idx, coarse_area, x_avg_list, y_avg_list, rho_avg, scalar_avg, ret):
         idx_i = np.extract(np.greater(idx_set, -1), idx_set)
