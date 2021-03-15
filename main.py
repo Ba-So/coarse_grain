@@ -186,7 +186,7 @@ class Operations(object):
         varshape.insert(1, 2)
         rhoxy = self.create_array(varshape)
         print('computing the rhoxy values ...')
-        phys.compute_dyad_rey(
+        phys.compute_dyad_re(
             x, y, rho,
             x_avg, y_avg, rho_bar,
             self.c_mem_idx, self.c_area,
@@ -227,7 +227,7 @@ class Operations(object):
                             )
         return rhoxy
 
-    def rhoxy_averages_scalar(self, xname, yname, sname, xavg, yavg, ravg, savg, numfile=0):
+    def rhoxy_averages_scalar(self, xname, yname, sname, xavg, yavg, savg, numfile=0):
         x = self.IO.load_from('data', xname, numfile)
         y = self.IO.load_from('data', yname, numfile)
         if self.IO.isin('data', sname, numfile):
@@ -238,9 +238,9 @@ class Operations(object):
             sys.exit('This was not supposed to happen.')
         x_avg = self.IO.load_from('newdata', xavg, numfile)
         y_avg = self.IO.load_from('newdata', yavg, numfile)
-        r_avg = self.IO.load_from('newdata', ravg, numfile)
         s_avg = self.IO.load_from('newdata', savg)
         rho = self.IO.load_from('data', 'RHO', numfile)
+        rho_bar = self.IO.load_from('newdata', 'RHO_BAR', numfile)
         x = self.nfo_merge(x)
         y = self.nfo_merge(y)
         s = self.nfo_merge(s)
@@ -250,13 +250,13 @@ class Operations(object):
         print('computing the rhoxy values ...')
         phys.compute_dyad_scalar(
             x, y, rho, s,
-            x_avg, y_avg, r_avg, s_avg,
+            x_avg, y_avg, rho_bar, s_avg,
             self.c_mem_idx, self.c_area,
             rhoxy
         )
         return rhoxy
 
-    def rhoxy_averages_scalar_re(self, xname, yname, sname, xavg, yavg, ravg, savg, numfile=0):
+    def rhoxy_averages_scalar_re(self, xname, yname, sname, xavg, yavg, savg, numfile=0):
         '''computing the rhoxy average, applying reynolds assumption'''
         x = self.IO.load_from('data', xname, numfile)
         y = self.IO.load_from('data', yname, numfile)
@@ -270,6 +270,7 @@ class Operations(object):
         y_avg = self.IO.load_from('newdata', yavg, numfile)
         s_avg = self.IO.load_from('newdata', savg)
         rho = self.IO.load_from('data', 'RHO', numfile)
+        rho_bar = self.IO.load_from('newdata', 'RHO_BAR', numfile)
         x = self.nfo_merge(x)
         y = self.nfo_merge(y)
         s = self.nfo_merge(s)
@@ -277,9 +278,9 @@ class Operations(object):
         varshape.insert(1, 2)
         rhoxy = self.create_array(varshape)
         print('computing the rhoxy values ...')
-        phys.compute_dyad_scalar_Rey(
+        phys.compute_dyad_scalar_re(
             x, y, rho, s,
-            x_avg, y_avg, s_avg,
+            x_avg, y_avg, rho_bar, s_avg,
             self.c_mem_idx, self.c_area,
             rhoxy
         )
@@ -305,8 +306,11 @@ class Operations(object):
                             )
         return
 
-    def turbulent_shear_prod_iso(self, rhoxy, gradxy, filenum=0, outname='KITRA'):
-        '''assumes the full shear tensor hand-in!'''
+    def turbulent_shear_prod_full(self, rhoxy, gradxy, filenum=0, outname='KITRA'):
+        '''assumes the full shear tensor hand-in!
+            computes both, the full and isotropic
+            transfer rates.
+        '''
         print('computing the turbulent shear production values ...')
         if not(self.IO.check_for([outname], filenum)[0]):
             varshape = list(np.shape(rhoxy))
@@ -880,6 +884,32 @@ class CoarseGrain(Operations):
             T_grad = self.load_T_grad(filenum)
             print('computing fluct dyad')
             rhouv_flucts = self.rhoxy_averages_scalar('U', 'V', 'T', 'U_HAT', 'V_HAT', 'T_HAT', filenum)
+            print('computing the rates')
+            turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad)
+            del rhouv_flucts, T_grad, turbfric
+            print('done')
+
+    def exec_heat_transfer_rey(self):
+        print('computing turbulent heat transfer rates')
+        print('***')
+        for filenum, file in enumerate(self.IO.datafiles):
+            print('processing file number {}'.format(filenum + 1))
+            if not(self.IO.check_for(['U_HAT', 'V_HAT', 'DVX', 'DUX', 'DVY', 'DVX'], filenum)[0]):
+                print('preparing winds')
+                self.prepare_winds(filenum)
+                print('***')
+            if not(self.IO.check_for(['T', 'T_HAT'], filenum)[0]):
+                print('preparing Temperature')
+                self.compute_T(filenum)
+                print('***')
+            if not(self.IO.check_for(['DTX', 'DTY'], filenum)[0]):
+                print('preparing T Gradients')
+                self.prepare_Tgrad(filenum)
+                print('***')
+            print('loading T Gradients')
+            T_grad = self.load_T_grad(filenum)
+            print('computing fluct dyad')
+            rhouv_flucts = self.rhoxy_averages_scalar_re('U', 'V', 'T', 'U_HAT', 'V_HAT', 'T_HAT', filenum)
             print('computing the rates')
             turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad)
             del rhouv_flucts, T_grad, turbfric
