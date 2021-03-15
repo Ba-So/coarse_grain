@@ -33,13 +33,15 @@ def compute_dyad_rey(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem
         product = np.einsum('ilmk,jlmk->ijlmk', constituents, constituents)
         # average over coarse_area
         dyad = np.einsum(
-            'ijlmk,l,lmk->ijmk',
+            'ijlmk,l,lmk,lmk->ijmk',
             product,
             cell_area,
-            rho_set
+            rho_set,
+            rho_set # for proper hat average
         )
         #normalize: out_tens = np.multiply(out_tens, (-1))
         out_tens = np.divide(dyad, c_area)
+        out_tens = np.divide(out_tens, r_avg)
         #subtract anisotropic part
         # trace = 0.5 * np.add(out_tens[0,0,:], out_tens[1,1,:])
         #for i in range(2):
@@ -77,13 +79,15 @@ def compute_dyad(x_vals, y_vals, rho, x_avg_list, y_avg_list, rho_avg, c_mem_idx
         del constituents
         # average over coarse_area
         fine_tens = np.einsum(
-            'ijlmk,l,lmk->ijmk',
+            'ijlmk,l,lmk,lmk->ijmk',
             fine_tens,
             cell_area,
-            rho_set
+            rho_set,
+            rho_set # for proper hat avg
         )
         del rho_set, cell_area
         fine_tens = np.divide(fine_tens, c_area)
+        fine_tens = np.divide(fine_tens, rhoi) # for proper hat avg
         # coarse tensor
         avg_vec = np.array([x_avg, y_avg])
         avg_tens = np.einsum('imk,jmk,mk->ijmk', avg_vec, avg_vec, rhoi)
@@ -127,19 +131,22 @@ def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho
         del scalar_set, constituents
         # averaging the "fine" vector
         fine_vec = np.einsum(
-            'ijlmk,l,lmk->ijmk',
+            'ijlmk,l,lmk,lmk->ijmk',
             fine_vec,
             cell_area,
-            rho_set
+            rho_set,
+            rho_set # for proper hat avg
         )
         del rho_set, cell_area #not needed
         fine_vec = np.divide(fine_vec, c_area)
+        fine_vec = np.divide(fine_vec, r_avg) # for proper hat avg
         # setup coarse_vec
         coarse_vec = np.array([x_avg, y_avg])
         coarse_vec = np.multiply(s_avg, coarse_vec)
         coarse_vec = np.multiply(r_avg, coarse_vec)
         # computing Reynolds free "dyad":
         reti[:,] = np.subtract(fine_vec, coarse_vec)
+
 
 @TimeThis
 @requires({
@@ -166,13 +173,15 @@ def compute_dyad_scalar_rey(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list,
         cell_area = np.array([x[1] for x in x_flucts])
         del rho_flucts, scale_flucts, y_flucts, x_flucts
         # average over coarse_area
-        dyad = np.einsum('ilmk,lmk,lmk,l->imk',
+        dyad = np.einsum('ilmk,lmk,lmk,lmk,l->imk',
                             constituents,
                             scales,
+                            rhos,
                             rhos,
                             cell_area
                             )
         #normalize:
+        dyad = np.divide(dyad, r_avg)
         reti[:,] = np.divide(dyad, c_area)
 
 @TimeThis
