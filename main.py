@@ -792,9 +792,9 @@ class Operations(object):
                         )
 
 class CoarseGrain(Operations):
-    def __init__(self, path, grid, data):
+    def __init__(self, path, grid, data, opt_name=None):
         self._ready = True
-        self.IO = cio.IOcontroller(path, grid, data)
+        self.IO = cio.IOcontroller(path, grid, data, opt_name)
         self.prepare()
 
     def set_mp(self, switch, num_procs):
@@ -1069,7 +1069,8 @@ if __name__ == '__main__':
         )
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
-    cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0])
+    opt_name = 'BCW_Dual'
+    cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0], opt_name=opt_name)
 #    cg.gradient_debug()
     cg.exec_kine_transfer()
     cg.exec_kine_transfer_re()

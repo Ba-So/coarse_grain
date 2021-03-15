@@ -11,19 +11,24 @@ import numpy as np
 
 class IOcontroller(object):
 
-    def __init__(self, experiment_path, grid=None, data=None, out=True):
+    def __init__(self, experiment_path, grid=None, data=None, opt_name=None, out=True):
         self.experiment_path = os.path.expanduser(experiment_path)
         if grid:
             self.gridfile = self.find(grid)
+            self.cg_level = grid[-4:-3]
         if data:
             self.datafiles = self.find(data)
             print('datafiles: {}'.format(self.datafiles))
             if out:
                 if not os.path.exists(os.path.join(self.experiment_path,'filtered')):
                     os.makedirs(os.path.join(self.experiment_path, 'filtered'))
-                self.outfiles = [os.path.join('filtered',data[:-3] + '_helper.nc') for data in self.datafiles]
+                if opt_name:
+                    self.outfiles = [os.path.join('filtered', opt_name + '_{}'.format(self.cg_level) + '_helper.nc') for data in self.datafiles]
+                    self.resultfiles = [os.path.join('filtered', opt_name + '_{}'.format(self.cg_level) + '_results.nc') for data in self.datafiles]
+                else:
+                    self.outfiles = [os.path.join('filtered',data[:-3] + '_helper.nc') for data in self.datafiles]
+                    self.resultfiles = [os.path.join('filtered',data[:-3] + '_results.nc') for data in self.datafiles]
                 self.create_outfiles()
-                self.resultfiles = [os.path.join('filtered',data[:-3] + '_results.nc') for data in self.datafiles]
                 self.create_resfiles()
 
     def count_existing(self, pattern, where=None):
