@@ -841,7 +841,7 @@ class CoarseGrain(Operations):
             print('preparing fluct dyad')
             rhouv_flucts = self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
             print('computing the rates')
-            self.turbulent_shear_prod(rhouv_flucts, UV_gradients)
+            self.turbulent_shear_prod(rhouv_flucts, UV_gradients, outname='KTRA')
             del rhouv_flucts
             print('done')
 
@@ -859,7 +859,7 @@ class CoarseGrain(Operations):
             print('preparing Reynolds fluct dyad')
             rhouv_flucts = self.rhoxy_averages_re('U', 'V', 'U_HAT', 'V_HAT', filenum)
             print('computing the rates')
-            self.turbulent_shear_prod_iso(rhouv_flucts, UV_gradients, outname='KITRA_RE')
+            self.turbulent_shear_prod_iso(rhouv_flucts, UV_gradients, outname='KTRA_RE')
             del rhouv_flucts
             print('done')
 
@@ -885,11 +885,11 @@ class CoarseGrain(Operations):
             print('computing fluct dyad')
             rhouv_flucts = self.rhoxy_averages_scalar('U', 'V', 'T', 'U_HAT', 'V_HAT', 'T_HAT', filenum)
             print('computing the rates')
-            turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad)
+            turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad, outname='ITRA')
             del rhouv_flucts, T_grad, turbfric
             print('done')
 
-    def exec_heat_transfer_rey(self):
+    def exec_heat_transfer_re(self):
         print('computing turbulent heat transfer rates')
         print('***')
         for filenum, file in enumerate(self.IO.datafiles):
@@ -911,7 +911,7 @@ class CoarseGrain(Operations):
             print('computing fluct dyad')
             rhouv_flucts = self.rhoxy_averages_scalar_re('U', 'V', 'T', 'U_HAT', 'V_HAT', 'T_HAT', filenum)
             print('computing the rates')
-            turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad)
+            turbfric = self.turbulent_heat_flux(rhouv_flucts, T_grad, outname='ITRA_R')
             del rhouv_flucts, T_grad, turbfric
             print('done')
 
@@ -1072,4 +1072,6 @@ if __name__ == '__main__':
     cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0])
 #    cg.gradient_debug()
     cg.exec_kine_transfer()
+    cg.exec_kine_transfer_re()
     cg.exec_heat_transfer()
+    cg.exec_heat_transfer_re()
