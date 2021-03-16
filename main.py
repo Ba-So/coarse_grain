@@ -794,7 +794,7 @@ class Operations(object):
 class CoarseGrain(Operations):
     def __init__(self, path, grid, data, opt_name=None):
         self._ready = True
-        self.IO = cio.IOcontroller(path, grid, data, opt_name)
+        self.IO = cio.IOcontroller(path, grid, data, opt_name=opt_name)
         self.prepare()
 
     def set_mp(self, switch, num_procs):
@@ -1059,20 +1059,34 @@ if __name__ == '__main__':
         nargs = '+',
         help='a string specifying the name of the datafile'
     )
+    parser.add_argument(
+        'ptype',
+        metavar = 'proc',
+        type = str,
+        nargs = '+',
+        help='a string specifying procedure'
+    )
     args = parser.parse_args()
     print(
-        'coarse_graining the datafile {} using the gridfile {}.'
+        'coarse_graining the datafile {} using the gridfile {}.\n procedure {}'
         .format(
                 path.join(args.path_to_file[0], args.data_file[0]),
-                path.join(args.path_to_file[0], args.grid_file[0])
+                path.join(args.path_to_file[0], args.grid_file[0]),
+                path.join(args.ptype[0])
                 )
         )
     gmp.set_parallel_proc(True)
     gmp.set_num_procs(16)
-    opt_name = 'BCW_Dual'
+    opt_name = 'BCW_Dual_{}'.format(args.ptype[0])
     cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0], opt_name=opt_name)
 #    cg.gradient_debug()
-    cg.exec_kine_transfer()
-    cg.exec_kine_transfer_re()
-    cg.exec_heat_transfer()
-    cg.exec_heat_transfer_re()
+    if args.ptype[0] == 'kine':
+        cg.exec_kine_transfer()
+    elif args.ptype[0] == 'kine_re':
+        cg.exec_kine_transfer_re()
+    elif args.ptype[0] == 'ine':
+        cg.exec_heat_transfer()
+    elif args.ptype[0] == 'ine_re':
+        cg.exec_heat_transfer_re()
+    else:
+        print('invalid ptype')
