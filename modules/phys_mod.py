@@ -131,7 +131,7 @@ def compute_dyad_scalar(x_vals, y_vals, rho, scalar, x_avg_list, y_avg_list, rho
         del scalar_set, constituents
         # averaging the "fine" vector
         fine_vec = np.einsum(
-            'ijlmk,l,lmk,lmk->ijmk',
+            'ilmk,l,lmk,lmk->ijmk',
             fine_vec,
             cell_area,
             rho_set,

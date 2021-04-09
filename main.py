@@ -330,11 +330,11 @@ class Operations(object):
                             )
             del t_fric
             t_fric_iso = self.create_array(varshape)
-            trace = 0.5* np.add(rhoxy[0,0,:], rhoxy[0,0,:])
+            trace = 0.5* np.add(rhoxy[0,0,:], rhoxy[1,1,:])
             for i in range(2):
                 rhoxy[i,i,:] = np.subtract(rhoxy[i,i,:], trace)
             phys.turb_fric(rhoxy, gradxy, t_fric_iso)
-            self.IO.write_to('results', t_fric, name=outname+'_I',
+            self.IO.write_to('results', t_fric_iso, name=outname+'_I',
                             attrs={
                                 'long_name' : 'isotropic kinetic energy transfer rates',
                                 'units' : 'J/s',
@@ -395,8 +395,8 @@ class Operations(object):
         varshape.pop(1)
         t_heat = self.create_array(varshape)
         T = self.IO.load_from('newdata', 'T_HAT', filenum)
-        print('rhoxy: {}'.format(rhoxy[1, 1, :, 1]))
-        print('grad_T {}'.format(grad_T[1, 1, :, 1]))
+       # print('rhoxy: {}'.format(rhoxy[1, 1, :, 1]))
+       # print('grad_T {}'.format(grad_T[1, 1, :, 1]))
         phys.turb_heat(rhoxy, grad_T, T, t_heat)
         print('saving to file ...')
         self.IO.write_to('results', t_heat, name=outname,
@@ -841,7 +841,7 @@ class CoarseGrain(Operations):
             print('preparing fluct dyad')
             rhouv_flucts = self.rhoxy_averages('U', 'V', 'U_HAT', 'V_HAT', filenum)
             print('computing the rates')
-            self.turbulent_shear_prod(rhouv_flucts, UV_gradients, outname='KTRA')
+            self.turbulent_shear_prod_full(rhouv_flucts, UV_gradients, outname='KTRA')
             del rhouv_flucts
             print('done')
 
@@ -859,7 +859,7 @@ class CoarseGrain(Operations):
             print('preparing Reynolds fluct dyad')
             rhouv_flucts = self.rhoxy_averages_re('U', 'V', 'U_HAT', 'V_HAT', filenum)
             print('computing the rates')
-            self.turbulent_shear_prod_iso(rhouv_flucts, UV_gradients, outname='KTRA_RE')
+            self.turbulent_shear_prod_full(rhouv_flucts, UV_gradients, outname='KTRA_RE')
             del rhouv_flucts
             print('done')
 
@@ -1076,7 +1076,7 @@ if __name__ == '__main__':
                 )
         )
     gmp.set_parallel_proc(True)
-    gmp.set_num_procs(16)
+    gmp.set_num_procs(23)
     opt_name = 'BCW_Dual_{}'.format(args.ptype[0])
     cg = CoarseGrain(args.path_to_file[0], args.grid_file[0], args.data_file[0], opt_name=opt_name)
 #    cg.gradient_debug()
@@ -1087,6 +1087,11 @@ if __name__ == '__main__':
     elif args.ptype[0] == 'ine':
         cg.exec_heat_transfer()
     elif args.ptype[0] == 'ine_re':
+        cg.exec_heat_transfer_re()
+    elif args.ptype[0] == 'all':
+        cg.exec_kine_transfer()
+        cg.exec_kine_transfer_re()
+        cg.exec_heat_transfer()
         cg.exec_heat_transfer_re()
     else:
         print('invalid ptype')
